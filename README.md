@@ -17,6 +17,6 @@ AI-powered resume generator that creates ATS-optimized resumes tailored to speci
 - **Frontend:** React.js, JavaScript, HTML5, CSS3
 - **Backend:** Node.js, Express.js
 - **Database:** MongoDB
-- **AI/ML:** Python, NLP, LLM APIs
+- **AI/ML:** Google Gemini APIs
 - **Authentication:** JWT
 - **Tools:** Git, GitHub, Postman
