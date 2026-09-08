@@ -6,28 +6,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
-  ============================================================
-  RESUMATE — AI CAREER STUDIO
-  ============================================================
-
-  Design language:
-  - Premium AI SaaS
-  - Minimal
-  - Futuristic but professional
-  - Soft glass surfaces
-  - Indigo / violet AI accents
-  - Teal for positive / verified states
-  - Gold for highlights
-*/
-
 
 /* ============================================================
-   DESIGN TOKENS
+   RESUMATE — AI CAREER STUDIO
+   GLOBAL DESIGN SYSTEM
    ============================================================ */
 
 :root {
-
   --paper: #f7f8fc;
   --ink: #111827;
   --ink-soft: #667085;
@@ -38,7 +23,7 @@
   --background: var(--paper);
   --foreground: var(--ink);
 
-  --card: rgba(255, 255, 255, 0.82);
+  --card: rgba(255, 255, 255, 0.90);
   --card-foreground: var(--ink);
 
   --popover: #ffffff;
@@ -78,7 +63,9 @@
 
   --radius: 0.75rem;
 
-  --sidebar: rgba(255, 255, 255, 0.9);
+  --sidebar-width: 256px;
+
+  --sidebar: rgba(255, 255, 255, 0.96);
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--ai);
   --sidebar-primary-foreground: #ffffff;
@@ -110,9 +97,11 @@
 
 /* ============================================================
    DARK MODE
+   Theme controlled by <html class="dark">
    ============================================================ */
 
-.dark {
+html.dark {
+  color-scheme: dark;
 
   --paper: #090b10;
   --ink: #f8fafc;
@@ -121,24 +110,24 @@
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.15);
 
-  --background: var(--paper);
-  --foreground: var(--ink);
+  --background: #090b10;
+  --foreground: #f8fafc;
 
-  --card: rgba(17, 20, 28, 0.82);
-  --card-foreground: var(--ink);
+  --card: rgba(17, 20, 28, 0.92);
+  --card-foreground: #f8fafc;
 
   --popover: #11141c;
-  --popover-foreground: var(--ink);
+  --popover-foreground: #f8fafc;
 
   --primary: #818cf8;
   --primary-foreground: #ffffff;
   --primary-dark: #6366f1;
 
   --secondary: #171b24;
-  --secondary-foreground: var(--ink);
+  --secondary-foreground: #f8fafc;
 
   --muted: #171b24;
-  --muted-foreground: var(--ink-soft);
+  --muted-foreground: #98a2b3;
 
   --accent: #818cf8;
   --accent-foreground: #ffffff;
@@ -152,17 +141,17 @@
   --plum: #a78bfa;
   --destructive: #ef7255;
 
-  --border: var(--line);
-  --input: var(--line);
-  --ring: var(--ai);
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.10);
+  --ring: #818cf8;
 
-  --sidebar: rgba(17, 20, 28, 0.92);
-  --sidebar-foreground: var(--ink);
+  --sidebar: rgba(17, 20, 28, 0.97);
+  --sidebar-foreground: #f8fafc;
   --sidebar-primary: #818cf8;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #171b24;
-  --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: var(--line);
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #818cf8;
 
   --shadow-xs:
@@ -180,11 +169,19 @@
 
 
 /* ============================================================
+   LIGHT MODE EXPLICIT
+   ============================================================ */
+
+html.light {
+  color-scheme: light;
+}
+
+
+/* ============================================================
    TAILWIND THEME
    ============================================================ */
 
 @theme inline {
-
   --font-sans:
     "Geist Variable",
     sans-serif;
@@ -250,12 +247,14 @@
 
 
 /* ============================================================
-   BASE
+   GLOBAL RESET
    ============================================================ */
 
 @layer base {
 
-  * {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
@@ -263,22 +262,37 @@
     margin: 0 !important;
     padding: 0 !important;
 
-    height: 100% !important;
     width: 100% !important;
+    min-width: 100% !important;
 
-    overflow: hidden !important;
+    height: auto !important;
+    min-height: 100% !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
 
     font-family: var(--font-sans);
+
+    background: var(--background);
+    color: var(--foreground);
+
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
   }
 
   body {
     margin: 0 !important;
     padding: 0 !important;
 
-    height: 100% !important;
     width: 100% !important;
+    min-width: 100% !important;
 
-    overflow: hidden !important;
+    height: auto !important;
+    min-height: 100vh !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
 
     background: var(--background);
     color: var(--foreground);
@@ -301,8 +315,20 @@
 
   button,
   input,
-  textarea {
+  textarea,
+  select {
     font-family: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
   }
 
   :focus-visible {
@@ -313,15 +339,34 @@
 
 
 /* ============================================================
+   ROOT
+   ============================================================ */
+
+#root {
+  width: 100% !important;
+  min-width: 100% !important;
+
+  height: auto !important;
+  min-height: 100vh !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+
+/* ============================================================
    GLOBAL BACKGROUND
    ============================================================ */
 
 body::before {
-
   content: "";
 
   position: fixed;
-
   inset: 0;
 
   pointer-events: none;
@@ -341,6 +386,323 @@ body::before {
     );
 }
 
+html.dark body::before {
+  background:
+    radial-gradient(
+      circle at 10% 5%,
+      rgba(99, 102, 241, 0.10),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 90% 10%,
+      rgba(139, 92, 246, 0.08),
+      transparent 25%
+    );
+}
+
+
+/* ============================================================
+   APPLICATION SHELL
+   ============================================================ */
+
+.app-root {
+  position: relative;
+
+  width: 100% !important;
+  min-width: 100% !important;
+
+  height: auto !important;
+  min-height: 100vh !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+
+.app-sidebar {
+  position: fixed;
+
+  top: 0;
+  left: 0;
+  bottom: 0;
+
+  width: var(--sidebar-width);
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  z-index: 100;
+
+  background: var(--sidebar);
+
+  border-right: 1px solid var(--sidebar-border);
+
+  overflow: hidden !important;
+
+  flex-shrink: 0;
+
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.app-sidebar > * {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.app-sidebar nav,
+.app-sidebar ul,
+.app-sidebar li {
+  max-width: var(--sidebar-width);
+}
+
+
+/* ============================================================
+   APPLICATION RIGHT AREA
+   ============================================================ */
+
+.app-right {
+  position: relative;
+
+  width: calc(100% - var(--sidebar-width));
+
+  min-width: 0;
+
+  margin-left: var(--sidebar-width);
+
+  min-height: 100vh;
+
+  height: auto !important;
+
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  background: var(--background);
+}
+
+
+/* ============================================================
+   NAVBAR
+   ============================================================ */
+
+.app-navbar {
+  position: fixed;
+
+  top: 0;
+  right: 0;
+  left: var(--sidebar-width);
+
+  width: auto;
+
+  height: 76px;
+
+  z-index: 90;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  background: var(--background);
+
+  border-bottom: 1px solid var(--line);
+
+  overflow: visible !important;
+
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.app-navbar > * {
+  width: 100% !important;
+}
+
+
+/* ============================================================
+   APPLICATION CONTENT
+   ============================================================ */
+
+.app-content {
+  position: relative;
+
+  width: 100%;
+
+  min-width: 0;
+
+  min-height: 100vh;
+
+  height: auto !important;
+
+  margin: 0 !important;
+
+  padding: 76px 0 0 0 !important;
+
+  overflow: visible !important;
+
+  background: var(--background);
+}
+
+
+/* ============================================================
+   ROUTE CONTENT
+   ============================================================ */
+
+.app-route {
+  position: relative;
+
+  width: 100% !important;
+
+  min-width: 0;
+
+  min-height: calc(100vh - 76px);
+
+  height: auto !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  max-width: none !important;
+  max-height: none !important;
+
+  overflow: visible !important;
+
+  background: var(--background);
+}
+
+
+/* ============================================================
+   ROUTE WRAPPER
+   ============================================================ */
+
+.route-wrapper {
+  position: relative;
+
+  width: 100% !important;
+
+  min-width: 0;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  max-width: none !important;
+  max-height: none !important;
+
+  margin: 0 !important;
+
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  will-change: opacity, transform;
+}
+
+
+/* ============================================================
+   PAGE INNER
+   ============================================================ */
+
+.page-inner {
+  position: relative;
+
+  width: 100% !important;
+
+  min-width: 0;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  max-width: none !important;
+  max-height: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  box-sizing: border-box;
+}
+
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+.page-inner::-webkit-scrollbar {
+  width: auto;
+  height: auto;
+}
+
+
+/* ============================================================
+   APPLICATION SHELL OVERRIDES
+   ============================================================ */
+
+#root > .min-h-screen,
+#root > div.min-h-screen {
+  height: auto !important;
+  min-height: 100vh !important;
+
+  max-height: none !important;
+
+  overflow: visible !important;
+}
+
+.app-right main,
+.app-content main,
+.app-route main {
+  height: auto !important;
+
+  min-height: 0 !important;
+
+  max-height: none !important;
+
+  overflow: visible !important;
+}
+
+
+/* ============================================================
+   HOME LAYOUT
+   ============================================================ */
+
+.home-layout {
+  position: relative;
+
+  width: 100% !important;
+  min-width: 0;
+
+  min-height: 100vh;
+
+  height: auto !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.home-layout > * {
+  max-width: 100%;
+}
+
+.home-layout section,
+.home-layout > div {
+  max-width: 100%;
+}
+
 
 /* ============================================================
    CONTAINERS
@@ -348,12 +710,28 @@ body::before {
 
 .container,
 .container-page {
+  width: 100%;
 
   max-width: 1180px;
 
   margin: 0 auto;
 
-  padding: 0 20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+
+/* ============================================================
+   FULL WIDTH
+   ============================================================ */
+
+.page-full,
+.full-page {
+  width: 100% !important;
+
+  max-width: none !important;
+
+  margin: 0 !important;
 }
 
 
@@ -362,30 +740,20 @@ body::before {
    ============================================================ */
 
 .card {
+  background: var(--card);
 
-  background:
-    var(--color-card);
+  color: var(--card-foreground);
 
-  color:
-    var(--color-card-foreground);
+  border: 1px solid var(--border);
 
-  border:
-    1px solid var(--color-border);
+  border-radius: var(--radius-xl);
 
-  border-radius:
-    var(--radius-xl);
+  box-shadow: var(--shadow-xs);
 
-  box-shadow:
-    var(--shadow-xs);
+  padding: 1rem;
 
-  padding:
-    1rem;
-
-  backdrop-filter:
-    blur(18px);
-
-  -webkit-backdrop-filter:
-    blur(18px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 
   transition:
     background-color 0.25s ease,
@@ -395,14 +763,9 @@ body::before {
     transform 0.25s var(--easing-standard);
 }
 
-
 .card:hover {
-
-  border-color:
-    var(--color-border);
-
-  box-shadow:
-    var(--shadow-sm);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 
@@ -411,7 +774,7 @@ body::before {
    ============================================================ */
 
 .muted {
-  color: var(--color-muted-foreground);
+  color: var(--muted-foreground);
 }
 
 
@@ -420,23 +783,20 @@ body::before {
    ============================================================ */
 
 .ai-badge {
-
   display: inline-flex;
 
   align-items: center;
 
   gap: 0.45rem;
 
-  padding:
-    0.35rem 0.7rem;
+  padding: 0.35rem 0.7rem;
 
-  border-radius:
-    999px;
+  border-radius: 999px;
 
   background:
     color-mix(
       in srgb,
-      var(--color-teal) 9%,
+      var(--teal) 9%,
       transparent
     );
 
@@ -444,21 +804,17 @@ body::before {
     1px solid
     color-mix(
       in srgb,
-      var(--color-teal) 18%,
+      var(--teal) 18%,
       transparent
     );
 
-  color:
-    var(--color-teal);
+  color: var(--teal);
 
-  font-size:
-    0.7rem;
+  font-size: 0.7rem;
 
-  font-weight:
-    700;
+  font-weight: 700;
 
-  letter-spacing:
-    0.06em;
+  letter-spacing: 0.06em;
 }
 
 
@@ -467,23 +823,18 @@ body::before {
    ============================================================ */
 
 .gradient-text {
-
   background:
     linear-gradient(
       135deg,
-      var(--color-ai, #6366f1),
-      var(--color-plum, #8b5cf6),
+      var(--ai),
+      var(--plum),
       #ec4899
     );
 
-  -webkit-background-clip:
-    text;
+  -webkit-background-clip: text;
+  background-clip: text;
 
-  background-clip:
-    text;
-
-  color:
-    transparent;
+  color: transparent;
 }
 
 
@@ -492,47 +843,36 @@ body::before {
    ============================================================ */
 
 .ai-glow {
+  position: relative;
 
-  position:
-    relative;
-
-  overflow:
-    hidden;
+  overflow: hidden;
 }
 
-
 .ai-glow::before {
+  content: "";
 
-  content:
-    "";
+  position: absolute;
 
-  position:
-    absolute;
+  width: 520px;
+  height: 520px;
 
-  width:
-    520px;
+  top: -300px;
+  right: -180px;
 
-  height:
-    520px;
-
-  top:
-    -300px;
-
-  right:
-    -180px;
-
-  border-radius:
-    50%;
+  border-radius: 50%;
 
   background:
     radial-gradient(
       circle,
-      rgba(99, 102, 241, 0.17),
+      color-mix(
+        in srgb,
+        var(--ai) 17%,
+        transparent
+      ),
       transparent 70%
     );
 
-  pointer-events:
-    none;
+  pointer-events: none;
 }
 
 
@@ -541,22 +881,18 @@ body::before {
    ============================================================ */
 
 .tech-grid {
-
   background-image:
-
     linear-gradient(
-      rgba(99, 102, 241, 0.035) 1px,
+      color-mix(in srgb, var(--ai) 3.5%, transparent) 1px,
       transparent 1px
     ),
-
     linear-gradient(
       90deg,
-      rgba(99, 102, 241, 0.035) 1px,
+      color-mix(in srgb, var(--ai) 3.5%, transparent) 1px,
       transparent 1px
     );
 
-  background-size:
-    32px 32px;
+  background-size: 32px 32px;
 }
 
 
@@ -565,132 +901,89 @@ body::before {
    ============================================================ */
 
 .btn {
+  display: inline-flex;
 
-  display:
-    inline-flex;
+  align-items: center;
+  justify-content: center;
 
-  align-items:
-    center;
+  gap: 8px;
 
-  justify-content:
-    center;
+  padding: 0.65rem 1rem;
 
-  gap:
-    8px;
+  border-radius: 0.75rem;
 
-  padding:
-    0.65rem 1rem;
+  font-weight: 600;
 
-  border-radius:
-    0.75rem;
+  font-size: 0.875rem;
 
-  font-weight:
-    600;
+  cursor: pointer;
 
-  font-size:
-    0.875rem;
-
-  cursor:
-    pointer;
-
-  border:
-    1px solid transparent;
+  border: 1px solid transparent;
 
   transition:
-    transform var(--motion-fast)
-      var(--easing-standard),
-
-    box-shadow var(--motion-fast)
-      ease,
-
-    opacity var(--motion-fast)
-      linear,
-
+    transform var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) ease,
+    opacity var(--motion-fast) linear,
     background-color 0.15s ease,
-
     border-color 0.15s ease;
 }
-
 
 .btn:hover {
   transform: translateY(-1px);
 }
 
-
 .btn:active {
   transform: translateY(1px) scale(0.997);
 }
 
-
 .btn-primary {
-
   background:
     linear-gradient(
       135deg,
-      var(--color-ai, #6366f1),
-      var(--color-plum, #8b5cf6)
+      var(--ai),
+      var(--plum)
     );
 
-  color:
-    white;
+  color: white;
 
   box-shadow:
-    0 8px 22px
-    rgba(99, 102, 241, 0.20);
+    0 8px 22px rgba(99, 102, 241, 0.20);
 }
-
 
 .btn-primary:hover {
-
   box-shadow:
-    0 12px 30px
-    rgba(99, 102, 241, 0.28);
+    0 12px 30px rgba(99, 102, 241, 0.28);
 }
-
 
 .btn-secondary {
+  background: var(--card);
 
-  background:
-    var(--color-card);
+  border: 1px solid var(--border);
 
-  border:
-    1px solid var(--color-border);
-
-  color:
-    var(--color-foreground);
+  color: var(--foreground);
 }
-
 
 .btn-secondary:hover {
-
-  background:
-    var(--color-secondary);
+  background: var(--secondary);
 }
 
-
 .btn-accent {
-
   background:
     linear-gradient(
       135deg,
-      var(--color-teal),
-      var(--color-ai, #6366f1)
+      var(--teal),
+      var(--ai)
     );
 
-  color:
-    white;
+  color: white;
 
   box-shadow:
-    0 8px 22px
-    rgba(99, 102, 241, 0.18);
+    0 8px 22px rgba(99, 102, 241, 0.18);
 }
 
-
 .btn-accent:hover {
-
   box-shadow:
-    0 12px 30px
-    rgba(99, 102, 241, 0.26);
+    0 12px 30px rgba(99, 102, 241, 0.26);
 }
 
 
@@ -700,24 +993,17 @@ body::before {
 
 .input,
 .textarea {
+  width: 100%;
 
-  width:
-    100%;
+  padding: 0.72rem 0.85rem;
 
-  padding:
-    0.72rem 0.85rem;
+  border-radius: 0.75rem;
 
-  border-radius:
-    0.75rem;
+  border: 1px solid var(--border);
 
-  border:
-    1px solid var(--color-border);
+  background: var(--card);
 
-  background:
-    var(--color-card);
-
-  color:
-    var(--color-foreground);
+  color: var(--foreground);
 
   transition:
     border-color 0.15s ease,
@@ -725,35 +1011,29 @@ body::before {
     background-color 0.15s ease;
 }
 
-
 .input::placeholder,
 .textarea::placeholder {
-
-  color:
-    var(--color-muted-foreground);
+  color: var(--muted-foreground);
 }
-
 
 .input:hover,
 .textarea:hover {
-
-  border-color:
-    var(--line-strong);
+  border-color: var(--line-strong);
 }
-
 
 .input:focus,
 .textarea:focus {
+  outline: none;
 
-  outline:
-    none;
-
-  border-color:
-    var(--color-ai, #6366f1);
+  border-color: var(--ai);
 
   box-shadow:
     0 0 0 4px
-    rgba(99, 102, 241, 0.10);
+    color-mix(
+      in srgb,
+      var(--ai) 10%,
+      transparent
+    );
 }
 
 
@@ -762,27 +1042,19 @@ body::before {
    ============================================================ */
 
 .label {
+  font-size: 0.75rem;
 
-  font-size:
-    0.75rem;
+  font-weight: 650;
 
-  font-weight:
-    650;
+  text-transform: uppercase;
 
-  text-transform:
-    uppercase;
+  letter-spacing: 0.06em;
 
-  letter-spacing:
-    0.06em;
+  margin-bottom: 0.4rem;
 
-  margin-bottom:
-    0.4rem;
+  display: block;
 
-  display:
-    block;
-
-  color:
-    var(--color-muted-foreground);
+  color: var(--muted-foreground);
 }
 
 
@@ -791,93 +1063,69 @@ body::before {
    ============================================================ */
 
 .panel {
+  background: var(--popover);
 
-  background:
-    var(--color-popover);
+  color: var(--popover-foreground);
 
-  color:
-    var(--color-popover-foreground);
+  border-radius: var(--radius-lg);
 
-  border-radius:
-    var(--radius-lg);
+  padding: 1rem;
 
-  padding:
-    1rem;
+  border: 1px solid var(--border);
 
-  border:
-    1px solid var(--color-border);
-
-  box-shadow:
-    var(--shadow-xs);
+  box-shadow: var(--shadow-xs);
 }
 
-
 .ats-panel {
-
   background:
     color-mix(
       in srgb,
-      var(--color-teal) 5%,
-      var(--color-card)
+      var(--teal) 5%,
+      var(--card)
     );
 
-  color:
-    var(--color-foreground);
+  color: var(--foreground);
 
-  border-radius:
-    var(--radius-lg);
+  border-radius: var(--radius-lg);
 
-  padding:
-    0.85rem;
+  padding: 0.85rem;
 
   border:
     1px solid
     color-mix(
       in srgb,
-      var(--color-teal) 15%,
-      var(--color-border)
+      var(--teal) 15%,
+      var(--border)
     );
 }
 
 
 /* ============================================================
-   NAVIGATION BUTTONS
+   NAVIGATION
    ============================================================ */
 
 .nav-btn {
+  width: 100%;
 
-  width:
-    100%;
+  display: flex;
 
-  display:
-    flex;
+  align-items: center;
 
-  align-items:
-    center;
+  gap: 0.75rem;
 
-  gap:
-    0.75rem;
+  padding: 0.65rem 0.75rem;
 
-  padding:
-    0.65rem 0.75rem;
+  border-radius: 0.7rem;
 
-  border-radius:
-    0.7rem;
+  background: transparent;
 
-  background:
-    transparent;
+  color: var(--muted-foreground);
 
-  color:
-    var(--color-muted-foreground);
+  border: none;
 
-  border:
-    none;
+  font-weight: 500;
 
-  font-weight:
-    500;
-
-  font-size:
-    0.875rem;
+  font-size: 0.875rem;
 
   transition:
     background-color 0.15s ease,
@@ -885,151 +1133,106 @@ body::before {
     transform 0.15s ease;
 }
 
-
 .nav-btn:hover {
+  background: var(--secondary);
 
-  background:
-    var(--color-secondary);
+  color: var(--foreground);
 
-  color:
-    var(--color-foreground);
-
-  transform:
-    translateX(1px);
+  transform: translateX(1px);
 }
 
-
 .nav-btn.active {
-
   background:
     color-mix(
       in srgb,
-      var(--color-ai, #6366f1) 9%,
+      var(--ai) 9%,
       transparent
     );
 
-  color:
-    var(--color-ai, #6366f1);
+  color: var(--ai);
 
-  font-weight:
-    600;
+  font-weight: 600;
 }
 
 
 /* ============================================================
-   LEGACY STAMP
+   STAMP
    ============================================================ */
 
 .stamp {
+  display: inline-flex;
 
-  display:
-    inline-flex;
+  align-items: center;
 
-  align-items:
-    center;
+  gap: 0.4em;
 
-  gap:
-    0.4em;
+  padding: 0.3em 0.75em;
 
-  padding:
-    0.3em 0.75em;
+  border: 1px solid var(--gold);
 
-  border:
-    1px solid var(--color-gold);
+  border-radius: 999px;
 
-  border-radius:
-    999px;
+  color: var(--gold);
 
-  color:
-    var(--color-gold);
+  font-family: var(--font-display);
 
-  font-family:
-    var(--font-display);
+  font-weight: 650;
 
-  font-weight:
-    650;
+  font-size: 0.68rem;
 
-  font-size:
-    0.68rem;
+  text-transform: uppercase;
 
-  text-transform:
-    uppercase;
-
-  letter-spacing:
-    0.08em;
+  letter-spacing: 0.08em;
 
   background:
     color-mix(
       in srgb,
-      var(--color-gold) 7%,
+      var(--gold) 7%,
       transparent
     );
 }
 
-
 .stamp-teal {
-
-  border-color:
-    var(--color-teal);
-
-  color:
-    var(--color-teal);
+  border-color: var(--teal);
+  color: var(--teal);
 }
 
-
 .stamp-brick {
-
-  border-color:
-    var(--color-brick);
-
-  color:
-    var(--color-brick);
+  border-color: var(--brick);
+  color: var(--brick);
 }
 
 
 /* ============================================================
-   PAGE TITLE LINE
+   PAGE TITLE
    ============================================================ */
 
 .ruled {
+  position: relative;
 
-  position:
-    relative;
-
-  padding-bottom:
-    0.9rem;
+  padding-bottom: 0.9rem;
 }
 
-
 .ruled::after {
+  content: "";
 
-  content:
-    "";
+  position: absolute;
 
-  position:
-    absolute;
+  left: 0;
+  bottom: 0;
 
-  left:
-    0;
+  height: 3px;
 
-  bottom:
-    0;
-
-  height:
-    3px;
-
-  width:
-    42px;
+  width: 42px;
 
   background:
     linear-gradient(
       90deg,
-      var(--color-ai, #6366f1),
-      var(--color-plum, #8b5cf6)
+      var(--ai),
+      var(--plum)
     );
 
-  border-radius:
-    999px;
+  border-radius: 999px;
 }
 
 
@@ -1038,7 +1241,6 @@ body::before {
    ============================================================ */
 
 @keyframes fadeIn {
-
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -1050,9 +1252,7 @@ body::before {
   }
 }
 
-
 @keyframes slideUp {
-
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -1064,9 +1264,7 @@ body::before {
   }
 }
 
-
 @keyframes pop {
-
   from {
     transform: scale(0.985);
     opacity: 0;
@@ -1078,9 +1276,7 @@ body::before {
   }
 }
 
-
 @keyframes glowPulse {
-
   0%,
   100% {
     opacity: 0.35;
@@ -1091,9 +1287,7 @@ body::before {
   }
 }
 
-
 .animate-fade {
-
   animation:
     fadeIn
     var(--motion-normal)
@@ -1101,9 +1295,7 @@ body::before {
     both;
 }
 
-
 .animate-slide-up {
-
   animation:
     slideUp
     var(--motion-slow)
@@ -1111,9 +1303,7 @@ body::before {
     both;
 }
 
-
 .animate-pop {
-
   animation:
     pop
     var(--motion-fast)
@@ -1121,9 +1311,7 @@ body::before {
     both;
 }
 
-
 .animate-glow {
-
   animation:
     glowPulse
     3s
@@ -1137,71 +1325,53 @@ body::before {
    ============================================================ */
 
 .spinner {
+  width: 18px;
 
-  width:
-    18px;
+  height: 18px;
 
-  height:
-    18px;
-
-  border-radius:
-    50%;
+  border-radius: 50%;
 
   border:
     2px solid
     color-mix(
       in srgb,
-      var(--color-foreground) 15%,
+      var(--foreground) 15%,
       transparent
     );
 
-  border-top-color:
-    var(--color-ai, #6366f1);
+  border-top-color: var(--ai);
 
   animation:
     spin 800ms linear infinite;
 
-  display:
-    inline-block;
+  display: inline-block;
 }
 
-
 @keyframes spin {
-
   to {
-    transform:
-      rotate(360deg);
+    transform: rotate(360deg);
   }
 }
 
 
 /* ============================================================
-   ROUTES
+   ROUTE ANIMATION
    ============================================================ */
 
 .route-wrapper {
-
-  will-change:
-    opacity,
-    transform;
+  will-change: opacity, transform;
 }
 
-
 .route-enter {
-
-  opacity:
-    0;
+  opacity: 0;
 
   transform:
     translateY(6px)
     scale(0.995);
 }
 
-
 .route-enter-active {
-
-  opacity:
-    1;
+  opacity: 1;
 
   transform:
     translateY(0)
@@ -1217,121 +1387,33 @@ body::before {
 
 
 /* ============================================================
-   ROOT / PAGE
-   ============================================================ */
-
-html,
-body {
-
-  margin:
-    0 !important;
-
-  padding:
-    0 !important;
-
-  height:
-    100% !important;
-
-  width:
-    100% !important;
-
-  overflow:
-    hidden !important;
-}
-
-
-#root {
-
-  height:
-    100% !important;
-
-  width:
-    100% !important;
-
-  overflow:
-    hidden !important;
-}
-
-
-.page-inner {
-
-  width:
-    100%;
-
-  height:
-    100%;
-
-  max-width:
-    100%;
-
-  max-height:
-    100%;
-
-  overflow-y:
-    auto;
-
-  overflow-x:
-    hidden;
-
-  -ms-overflow-style:
-    none !important;
-
-  scrollbar-width:
-    none !important;
-
-  box-sizing:
-    border-box;
-}
-
-
-.page-inner::-webkit-scrollbar {
-  display: none !important;
-}
-
-
-.page-inner:focus {
-  outline: none;
-}
-
-
-/* ============================================================
    PROGRESS
    ============================================================ */
 
 .progress {
+  height: 8px;
 
-  height:
-    8px;
+  background: var(--muted);
 
-  background:
-    var(--color-muted);
+  border-radius: 999px;
 
-  border-radius:
-    999px;
+  overflow: hidden;
 
-  overflow:
-    hidden;
-
-  border:
-    1px solid var(--color-border);
+  border: 1px solid var(--border);
 }
 
-
 .progress-fill {
-
-  height:
-    100%;
+  height: 100%;
 
   background:
     linear-gradient(
       90deg,
-      var(--color-teal),
-      var(--color-ai, #6366f1),
-      var(--color-plum, #8b5cf6)
+      var(--teal),
+      var(--ai),
+      var(--plum)
     );
 
-  width:
-    0%;
+  width: 0%;
 
   transition:
     width var(--motion-normal)
@@ -1344,40 +1426,27 @@ body {
    ============================================================ */
 
 .suggestions {
+  display: flex;
 
-  display:
-    flex;
+  gap: 0.5rem;
 
-  gap:
-    0.5rem;
-
-  flex-wrap:
-    wrap;
+  flex-wrap: wrap;
 }
 
-
 .chip {
+  padding: 0.4rem 0.75rem;
 
-  padding:
-    0.4rem 0.75rem;
+  border-radius: 999px;
 
-  border-radius:
-    999px;
+  background: var(--popover);
 
-  background:
-    var(--color-popover);
+  color: var(--popover-foreground);
 
-  color:
-    var(--color-popover-foreground);
+  border: 1px solid var(--border);
 
-  border:
-    1px solid var(--color-border);
+  cursor: pointer;
 
-  cursor:
-    pointer;
-
-  font-size:
-    0.82rem;
+  font-size: 0.82rem;
 
   transition:
     transform var(--motion-fast)
@@ -1390,25 +1459,20 @@ body {
       ease;
 }
 
-
 .chip:hover,
 .chip:focus {
+  transform: translateY(-2px);
 
-  transform:
-    translateY(-2px);
-
-  border-color:
-    var(--color-ai, #6366f1);
+  border-color: var(--ai);
 
   background:
     color-mix(
       in srgb,
-      var(--color-ai, #6366f1) 5%,
-      var(--color-popover)
+      var(--ai) 5%,
+      var(--popover)
     );
 
-  outline:
-    none;
+  outline: none;
 }
 
 
@@ -1417,45 +1481,145 @@ body {
    ============================================================ */
 
 .toast {
+  position: fixed;
 
-  position:
-    fixed;
+  right: 20px;
 
-  right:
-    20px;
+  bottom: 20px;
 
-  bottom:
-    20px;
+  min-width: 220px;
 
-  min-width:
-    220px;
+  padding: 0.8rem 1rem;
 
-  padding:
-    0.8rem 1rem;
+  border-radius: 0.75rem;
 
-  border-radius:
-    0.75rem;
+  box-shadow: var(--shadow-lg);
 
-  box-shadow:
-    var(--shadow-lg);
+  background: var(--card);
 
-  background:
-    var(--color-card);
+  color: var(--card-foreground);
 
-  color:
-    var(--color-card-foreground);
+  border: 1px solid var(--border);
 
-  border:
-    1px solid var(--color-border);
+  backdrop-filter: blur(18px);
 
-  backdrop-filter:
-    blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 
-  -webkit-backdrop-filter:
-    blur(18px);
+  z-index: 200;
+}
 
-  z-index:
-    60;
+
+/* ============================================================
+   AUTH PAGES
+   ============================================================ */
+
+.auth-root {
+  position: relative;
+
+  width: 100% !important;
+
+  min-width: 100%;
+
+  min-height: 100vh;
+
+  height: auto !important;
+
+  margin: 0;
+
+  padding: 0;
+
+  overflow: visible !important;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 767px) {
+
+  :root {
+    --sidebar-width: 0px;
+  }
+
+  .app-sidebar {
+    display: none !important;
+  }
+
+  .app-right {
+    width: 100% !important;
+
+    margin-left: 0 !important;
+
+    min-height: 100vh;
+  }
+
+  .app-navbar {
+    left: 0 !important;
+
+    width: 100% !important;
+  }
+
+  .app-content {
+    padding-top: 76px !important;
+  }
+
+  .container,
+  .container-page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+
+/* ============================================================
+   TABLET
+   ============================================================ */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+
+  :root {
+    --sidebar-width: 230px;
+  }
+
+  .app-sidebar {
+    width: var(--sidebar-width);
+  }
+
+  .app-right {
+    width: calc(100% - var(--sidebar-width));
+
+    margin-left: var(--sidebar-width);
+  }
+
+  .app-navbar {
+    left: var(--sidebar-width);
+  }
+}
+
+
+/* ============================================================
+   LARGE SCREENS
+   ============================================================ */
+
+@media (min-width: 1024px) {
+
+  .app-sidebar {
+    width: var(--sidebar-width);
+  }
+
+  .app-right {
+    width: calc(100% - var(--sidebar-width));
+
+    margin-left: var(--sidebar-width);
+  }
+
+  .app-navbar {
+    left: var(--sidebar-width);
+  }
 }
 
 
@@ -1466,24 +1630,600 @@ body {
 @media (prefers-reduced-motion: reduce) {
 
   :root {
-
-    --motion-fast:
-      1ms;
-
-    --motion-normal:
-      1ms;
-
-    --motion-slow:
-      1ms;
+    --motion-fast: 1ms;
+    --motion-normal: 1ms;
+    --motion-slow: 1ms;
   }
 
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
 
-  * {
+    animation-iteration-count: 1 !important;
 
-    animation-duration:
-      1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
 
-    transition-duration:
-      1ms !important;
+
+/* ============================================================
+   FINAL SAFETY OVERRIDES
+   ============================================================ */
+
+html {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+#root {
+  overflow: visible !important;
+
+  height: auto !important;
+
+  min-height: 100vh !important;
+}
+
+.page-inner {
+  overflow: visible !important;
+
+  height: auto !important;
+
+  max-height: none !important;
+}
+
+.route-wrapper {
+  overflow: visible !important;
+
+  height: auto !important;
+
+  max-height: none !important;
+}
+
+.app-root,
+.app-right,
+.app-content,
+.app-route {
+  overflow: visible !important;
+
+  height: auto !important;
+
+  max-height: none !important;
+}
+
+
+/* ============================================================
+   HARD-CODED LIGHT COLORS → DARK MODE
+   ============================================================ */
+
+html.dark .bg-white {
+  background-color: #11141c !important;
+}
+
+html.dark .bg-\[\#f7f8fc\] {
+  background-color: #090b10 !important;
+}
+
+html.dark .bg-\[\#f8f9fd\] {
+  background-color: #090b10 !important;
+}
+
+html.dark .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+html.dark .border-slate-100 {
+  border-color: #1e293b !important;
+}
+
+html.dark .border-slate-200 {
+  border-color: #273449 !important;
+}
+
+html.dark .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+
+html.dark .bg-indigo-100 {
+  background-color: rgba(99, 102, 241, 0.14) !important;
+}
+
+html.dark .bg-purple-50 {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+}
+
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+
+
+/* ============================================================
+   GENERIC TAILWIND SHELL SAFETY
+   ============================================================ */
+
+#root > div {
+  height: auto !important;
+
+  min-height: 100vh !important;
+
+  max-height: none !important;
+
+  overflow: visible !important;
+}
+
+
+/* ============================================================
+   HOME — CTA DARK MODE FIX
+   ONLY THIS SECTION IS ADDED/UPDATED
+   ============================================================ */
+
+/*
+   This fixes the large white box visible in the lower part
+   of the Home page in Dark Mode.
+
+   Light mode is NOT affected.
+*/
+
+
+/* ------------------------------------------------------------
+   1. DARK BACKGROUND FOR THE CTA AREA
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child,
+html.dark .home-layout section:last-of-type {
+  background-color: #090b10 !important;
+  background-image: none !important;
+
+  color: #f8fafc !important;
+}
+
+
+/* ------------------------------------------------------------
+   2. FORCE WHITE CTA SURFACES TO DARK
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child .bg-white,
+html.dark .home-layout section:last-of-type .bg-white,
+html.dark .home-layout section:last-child [class~="bg-white"],
+html.dark .home-layout section:last-of-type [class~="bg-white"] {
+  background-color: #11141c !important;
+  background-image: none !important;
+
+  color: #f8fafc !important;
+
+  border-color: rgba(255, 255, 255, 0.08) !important;
+
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35) !important;
+}
+
+
+/* ------------------------------------------------------------
+   3. FORCE ANY LIGHT GRADIENT TO DARK
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child [class*="from-white"],
+html.dark .home-layout section:last-child [class*="via-white"],
+html.dark .home-layout section:last-child [class*="to-white"],
+html.dark .home-layout section:last-of-type [class*="from-white"],
+html.dark .home-layout section:last-of-type [class*="via-white"],
+html.dark .home-layout section:last-of-type [class*="to-white"] {
+  background-color: #11141c !important;
+  background-image: none !important;
+
+  color: #f8fafc !important;
+}
+
+
+/* ------------------------------------------------------------
+   4. FORCE LIGHT INDIGO/PURPLE CTA BACKGROUNDS DARK
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child [class*="from-indigo-50"],
+html.dark .home-layout section:last-child [class*="via-indigo-50"],
+html.dark .home-layout section:last-child [class*="to-indigo-50"],
+html.dark .home-layout section:last-child [class*="from-purple-50"],
+html.dark .home-layout section:last-child [class*="via-purple-50"],
+html.dark .home-layout section:last-child [class*="to-purple-50"],
+html.dark .home-layout section:last-child [class*="from-violet-50"],
+html.dark .home-layout section:last-child [class*="via-violet-50"],
+html.dark .home-layout section:last-child [class*="to-violet-50"],
+html.dark .home-layout section:last-of-type [class*="from-indigo-50"],
+html.dark .home-layout section:last-of-type [class*="via-indigo-50"],
+html.dark .home-layout section:last-of-type [class*="to-indigo-50"],
+html.dark .home-layout section:last-of-type [class*="from-purple-50"],
+html.dark .home-layout section:last-of-type [class*="via-purple-50"],
+html.dark .home-layout section:last-of-type [class*="to-purple-50"],
+html.dark .home-layout section:last-of-type [class*="from-violet-50"],
+html.dark .home-layout section:last-of-type [class*="via-violet-50"],
+html.dark .home-layout section:last-of-type [class*="to-violet-50"] {
+  background-color: #11141c !important;
+  background-image: none !important;
+
+  color: #f8fafc !important;
+}
+
+
+/* ------------------------------------------------------------
+   5. CTA HEADINGS
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child h1,
+html.dark .home-layout section:last-child h2,
+html.dark .home-layout section:last-child h3,
+html.dark .home-layout section:last-child h4,
+html.dark .home-layout section:last-child h5,
+html.dark .home-layout section:last-child h6,
+html.dark .home-layout section:last-of-type h1,
+html.dark .home-layout section:last-of-type h2,
+html.dark .home-layout section:last-of-type h3,
+html.dark .home-layout section:last-of-type h4,
+html.dark .home-layout section:last-of-type h5,
+html.dark .home-layout section:last-of-type h6 {
+  color: #f8fafc !important;
+}
+
+
+/* ------------------------------------------------------------
+   6. CTA PARAGRAPH TEXT
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child p,
+html.dark .home-layout section:last-of-type p {
+  color: #98a2b3 !important;
+}
+
+
+/* ------------------------------------------------------------
+   7. CTA SPANS / TEXT
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child span,
+html.dark .home-layout section:last-of-type span {
+  color: #f8fafc;
+}
+
+
+/* ------------------------------------------------------------
+   8. DO NOT DARKEN THE CREATE MY RESUME BUTTON
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child button,
+html.dark .home-layout section:last-of-type button {
+  color: #ffffff !important;
+}
+
+
+/* ------------------------------------------------------------
+   9. PRESERVE PURPLE BUTTON BACKGROUND
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child button.bg-indigo-600,
+html.dark .home-layout section:last-child button.bg-violet-600,
+html.dark .home-layout section:last-child button.bg-purple-600,
+html.dark .home-layout section:last-of-type button.bg-indigo-600,
+html.dark .home-layout section:last-of-type button.bg-violet-600,
+html.dark .home-layout section:last-of-type button.bg-purple-600 {
+  background-color: #6366f1 !important;
+  background-image: none !important;
+
+  color: #ffffff !important;
+
+  border-color: transparent !important;
+}
+
+
+/* ------------------------------------------------------------
+   10. CTA BUTTON HOVER
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child button.bg-indigo-600:hover,
+html.dark .home-layout section:last-child button.bg-violet-600:hover,
+html.dark .home-layout section:last-child button.bg-purple-600:hover,
+html.dark .home-layout section:last-of-type button.bg-indigo-600:hover,
+html.dark .home-layout section:last-of-type button.bg-violet-600:hover,
+html.dark .home-layout section:last-of-type button.bg-purple-600:hover {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+
+
+/* ------------------------------------------------------------
+   11. CTA ICON CONTAINERS
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child .bg-indigo-50,
+html.dark .home-layout section:last-child .bg-indigo-100,
+html.dark .home-layout section:last-child .bg-purple-50,
+html.dark .home-layout section:last-of-type .bg-indigo-50,
+html.dark .home-layout section:last-of-type .bg-indigo-100,
+html.dark .home-layout section:last-of-type .bg-purple-50 {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+
+/* ------------------------------------------------------------
+   12. CTA BORDERS
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child .border-slate-100,
+html.dark .home-layout section:last-child .border-slate-200,
+html.dark .home-layout section:last-child .border-gray-100,
+html.dark .home-layout section:last-child .border-gray-200,
+html.dark .home-layout section:last-of-type .border-slate-100,
+html.dark .home-layout section:last-of-type .border-slate-200,
+html.dark .home-layout section:last-of-type .border-gray-100,
+html.dark .home-layout section:last-of-type .border-gray-200 {
+  border-color: #242936 !important;
+}
+
+
+/* ------------------------------------------------------------
+   13. INLINE WHITE BACKGROUND PROTECTION
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child [style*="background"],
+html.dark .home-layout section:last-of-type [style*="background"] {
+  background-color: #11141c !important;
+  background-image: none !important;
+}
+
+
+/* ------------------------------------------------------------
+   14. FINAL CTA SURFACE PROTECTION
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child > div,
+html.dark .home-layout section:last-of-type > div {
+  color: #f8fafc;
+}
+
+
+/* ------------------------------------------------------------
+   15. REMOVE WHITE PSEUDO-ELEMENTS
+   ------------------------------------------------------------ */
+
+html.dark .home-layout section:last-child::before,
+html.dark .home-layout section:last-child::after,
+html.dark .home-layout section:last-of-type::before,
+html.dark .home-layout section:last-of-type::after {
+  background: none !important;
+}
+
+
+/* ============================================================
+   END
+   ============================================================ */
+
+   /* ============================================================
+   HOME PAGE - MOBILE RESPONSIVE FIX
+   ============================================================ */
+
+@media (max-width: 767px) {
+
+  /* Prevent horizontal scrolling */
+  .home-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .home-page * {
+    box-sizing: border-box;
+  }
+
+  /* ----------------------------------------------------------
+     HERO
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-hero-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 28px !important;
+  }
+
+  .home-page .mobile-hero-content {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ----------------------------------------------------------
+     HERO TEXT
+     ---------------------------------------------------------- */
+
+  .home-page h1 {
+    max-width: 100% !important;
+    font-size: 38px !important;
+    line-height: 1.03 !important;
+  }
+
+  .home-page p {
+    max-width: 100%;
+  }
+
+  /* ----------------------------------------------------------
+     HERO BUTTONS
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-hero-buttons {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .home-page .mobile-hero-buttons button {
+    width: 100% !important;
+  }
+
+  /* ----------------------------------------------------------
+     TRUST POINTS
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-trust-points {
+    width: 100% !important;
+    gap: 8px 14px !important;
+  }
+
+  /* ----------------------------------------------------------
+     RESUME MOCKUP
+     ----------------------------------------------------------
+     
+     IMPORTANT:
+     Force the mockup to be visible immediately on mobile.
+     This removes the large blank area caused by the
+     translate/opacity scroll animation.
+     */
+
+  .home-page .mobile-mockup-wrapper {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+
+    opacity: 1 !important;
+    transform: none !important;
+
+    transition: none !important;
+    animation: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .home-page .mobile-resume-mockup {
+    width: 100% !important;
+    max-width: 340px !important;
+    min-width: 0 !important;
+
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* ----------------------------------------------------------
+     RESUME MOCKUP CARD
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-resume-mockup > div {
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  /* ----------------------------------------------------------
+     FEATURE BAR
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-feature-bar {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+  }
+
+  /* ----------------------------------------------------------
+     FEATURES
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-features-section {
+    padding-top: 42px !important;
+    padding-bottom: 42px !important;
+  }
+
+  /* ----------------------------------------------------------
+     HOW IT WORKS
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-how-section {
+    padding-top: 42px !important;
+    padding-bottom: 42px !important;
+  }
+
+  /* ----------------------------------------------------------
+     FINAL CTA
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-final-section {
+    padding-top: 42px !important;
+    padding-bottom: 42px !important;
+  }
+
+  .home-page .mobile-cta {
+    width: 100% !important;
+    padding: 32px 18px !important;
+  }
+
+  .home-page .mobile-cta button {
+    width: 100% !important;
+  }
+
+  /* ----------------------------------------------------------
+     FEATURE CARDS
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-feature-card {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* ----------------------------------------------------------
+     STEP CARDS
+     ---------------------------------------------------------- */
+
+  .home-page .mobile-step-card {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+
+/* ============================================================
+   SMALL PHONES
+   ============================================================ */
+
+@media (max-width: 390px) {
+
+  .home-page h1 {
+    font-size: 34px !important;
+  }
+
+  .home-page {
+    font-size: 14px;
+  }
+
+  .home-page .mobile-resume-mockup {
+    max-width: 320px !important;
+  }
+
+  .home-page .mobile-cta {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
   }
 }
