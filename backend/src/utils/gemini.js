@@ -1,7 +1,6 @@
 // backend/src/utils/gemini.js
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
@@ -10,23 +9,10 @@ if (!GEMINI_API_KEY) {
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Gemini Client
-|--------------------------------------------------------------------------
-|
-| @google/genai is an ESM package, while this project uses CommonJS.
-| Therefore we load it dynamically.
-|
-|--------------------------------------------------------------------------
-*/
-
 let genaiClient = null;
 
 async function getGeminiClient() {
-  if (genaiClient) {
-    return genaiClient;
-  }
+  if (genaiClient) return genaiClient;
 
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is missing in backend/.env");
@@ -41,21 +27,11 @@ async function getGeminiClient() {
   return genaiClient;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Utility: Remove Markdown JSON
-|--------------------------------------------------------------------------
-*/
-
 function cleanJsonText(text) {
-  if (!text) {
-    return "";
-  }
+  if (!text) return "";
 
   let cleaned = String(text).trim();
 
-  // Remove ```json ... ```
   cleaned = cleaned.replace(/^```json\s*/i, "");
   cleaned = cleaned.replace(/^```\s*/i, "");
   cleaned = cleaned.replace(/\s*```$/i, "");
@@ -63,77 +39,49 @@ function cleanJsonText(text) {
   return cleaned.trim();
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Utility: Safe JSON Parse
-|--------------------------------------------------------------------------
-*/
-
 function parseGeminiJson(text) {
   const cleaned = cleanJsonText(text);
 
   try {
     return JSON.parse(cleaned);
-  } catch (firstError) {
-    /*
-     * Sometimes models may put a little extra text around JSON.
-     * Try extracting the first JSON object.
-     */
-
+  } catch (_) {
     const firstBrace = cleaned.indexOf("{");
     const lastBrace = cleaned.lastIndexOf("}");
 
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      const possibleJson = cleaned.slice(
-        firstBrace,
-        lastBrace + 1
-      );
-
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
       try {
-        return JSON.parse(possibleJson);
-      } catch (secondError) {
-        throw new Error(
-          "Gemini returned invalid JSON."
+        return JSON.parse(
+          cleaned.slice(firstBrace, lastBrace + 1)
         );
+      } catch (_) {
+        // Continue to final error.
       }
     }
 
-    throw new Error(
-      "Gemini returned invalid JSON."
-    );
+    throw new Error("Gemini returned invalid JSON.");
   }
 }
 
+function withTimeout(promise, timeoutMs = 90000) {
+  let timer;
 
-/*
-|--------------------------------------------------------------------------
-| Utility: Promise Timeout
-|--------------------------------------------------------------------------
-*/
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          "Gemini request timed out. Please try again."
+        )
+      );
+    }, timeoutMs);
+  });
 
-function withTimeout(promise, timeoutMs = 60000) {
   return Promise.race([
     promise,
-
-    new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(
-          new Error(
-            "Gemini request timed out. Please try again."
-          )
-        );
-      }, timeoutMs);
-    })
-  ]);
+    timeoutPromise
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| Core Gemini JSON Generator
-|--------------------------------------------------------------------------
-*/
 
 async function generateGeminiJSON(
   prompt,
@@ -142,85 +90,120 @@ async function generateGeminiJSON(
 ) {
   const client = await getGeminiClient();
 
-  const timeoutMs = options.timeout || 60000;
+  const timeoutMs = options.timeout || 90000;
 
-  try {
-    const response = await withTimeout(
-      client.models.generateContent({
-        model: MODEL,
+  const models = [
+    MODEL,
+    "gemini-3.7-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash"
+  ].filter(
+    (model, index, arr) =>
+      arr.indexOf(model) === index
+  );
 
-        contents: prompt,
+  let lastError;
 
-        config: {
-          temperature:
-            options.temperature !== undefined
-              ? options.temperature
-              : 0.2,
+  for (const model of models) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(
+          `🤖 Gemini: ${model} | Attempt ${attempt}/2`
+        );
 
-          responseMimeType: "application/json",
+        const response = await withTimeout(
+          client.models.generateContent({
+            model,
+            contents: prompt,
 
-          responseSchema
+            config: {
+              responseFormat: {
+                text: {
+                  mimeType: "application/json",
+                  schema: responseSchema
+                }
+              },
+
+              ...(options.temperature !== undefined
+                ? {
+                    temperature: options.temperature
+                  }
+                : {})
+            }
+          }),
+
+          timeoutMs
+        );
+
+        const text = response?.text;
+
+        if (!text) {
+          throw new Error(
+            "Gemini returned an empty response."
+          );
         }
-      }),
 
-      timeoutMs
-    );
+        const result = parseGeminiJson(text);
 
-    const text = response?.text;
+        console.log(
+          `✅ Gemini response received using ${model}`
+        );
 
-    if (!text) {
-      throw new Error(
-        "Gemini returned an empty response."
-      );
+        return result;
+
+      } catch (error) {
+        lastError = error;
+
+        const message =
+          error?.message || String(error);
+
+        console.error(
+          `❌ Gemini ${model} attempt ${attempt}:`,
+          message
+        );
+
+        const lower = message.toLowerCase();
+
+        const isTemporary =
+          message.includes("429") ||
+          message.includes("503") ||
+          message.includes("UNAVAILABLE") ||
+          lower.includes("high demand") ||
+          lower.includes("timeout") ||
+          lower.includes("timed out") ||
+          lower.includes(
+            "temporarily unavailable"
+          ) ||
+          lower.includes("overloaded");
+
+        if (!isTemporary) {
+          break;
+        }
+
+        if (attempt < 2) {
+          const delay = attempt * 3000;
+
+          console.log(
+            `⏳ Retrying in ${delay / 1000} seconds...`
+          );
+
+          await new Promise(resolve =>
+            setTimeout(resolve, delay)
+          );
+        }
+      }
     }
 
-    return parseGeminiJson(text);
-
-  } catch (error) {
-    console.error(
-      "❌ Gemini Error:",
-      error?.message || error
-    );
-
-    /*
-     * Give the frontend a useful error rather than exposing
-     * an enormous SDK error object.
-     */
-
-    if (
-      error?.message?.includes("404") ||
-      error?.message?.includes("NOT_FOUND")
-    ) {
-      throw new Error(
-        `Gemini model "${MODEL}" is unavailable. ` +
-        `Check GEMINI_MODEL in backend/.env.`
-      );
-    }
-
-    if (
-      error?.message?.includes("401") ||
-      error?.message?.includes("403") ||
-      error?.message?.toLowerCase()?.includes("api key")
-    ) {
-      throw new Error(
-        "Gemini API authentication failed. Check GEMINI_API_KEY."
-      );
-    }
-
-    if (
-      error?.message?.includes("429") ||
-      error?.message?.toLowerCase()?.includes("quota")
-    ) {
-      throw new Error(
-        "Gemini API quota or rate limit reached. Please try again later."
-      );
-    }
-
-    throw new Error(
-      error?.message ||
-      "Gemini request failed."
+    console.log(
+      "🔄 Trying next Gemini model..."
     );
   }
+
+  throw new Error(
+    lastError?.message ||
+      "Gemini request failed after multiple attempts."
+  );
 }
 
 
@@ -228,26 +211,22 @@ async function generateGeminiJSON(
 |--------------------------------------------------------------------------
 | Resume Generation
 |--------------------------------------------------------------------------
-|
-| Used by:
-|
-| POST /api/ai/generate
-|
-| Generates a complete professional resume.
-|
-|--------------------------------------------------------------------------
 */
 
 async function callGemini(inputData = {}) {
+
   const {
     targetRole = "",
+    careerLevel = "Student / New Graduate",
     jobDescription = "",
+
     name = "",
     email = "",
     phone = "",
     location = "",
     linkedin = "",
     github = "",
+
     summary = "",
     skills = [],
     experience = [],
@@ -257,23 +236,46 @@ async function callGemini(inputData = {}) {
     achievements = []
   } = inputData;
 
+  const jd = String(
+    jobDescription || ""
+  ).slice(0, 14000);
+
   const prompt = `
-You are an expert professional resume writer, ATS specialist,
+You are the resume-generation engine for a professional
+resume builder similar to Zety.
+
+You are an expert ATS resume writer,
 technical recruiter, and career advisor.
 
-Create a professional, ATS-friendly resume from the candidate
-information below.
+Create ONE professional, concise,
+ATS-friendly resume for the candidate below.
 
-TARGET ROLE:
-${targetRole || "Not specified"}
+The final resume will be rendered as a
+SINGLE A4 PAGE.
 
-JOB DESCRIPTION:
-${jobDescription || "Not provided"}
+Use standard ATS section names and plain text.
 
-CANDIDATE INFORMATION:
+Do NOT use:
+- tables
+- columns
+- icons
+- graphics
+- emojis
+- decorative symbols
+- unusual formatting
+
+==================================================
+CANDIDATE
+==================================================
 
 Name:
 ${name}
+
+Career level:
+${careerLevel}
+
+Target role:
+${targetRole || "Not specified"}
 
 Email:
 ${email}
@@ -287,10 +289,22 @@ ${location}
 LinkedIn:
 ${linkedin}
 
-GitHub:
+GitHub/Portfolio:
 ${github}
 
-Existing Summary:
+
+==================================================
+JOB DESCRIPTION
+==================================================
+
+${jd || "Not provided"}
+
+
+==================================================
+EXISTING CANDIDATE CONTENT
+==================================================
+
+Summary:
 ${summary}
 
 Skills:
@@ -299,11 +313,11 @@ ${JSON.stringify(skills)}
 Experience:
 ${JSON.stringify(experience)}
 
-Education:
-${JSON.stringify(education)}
-
 Projects:
 ${JSON.stringify(projects)}
+
+Education:
+${JSON.stringify(education)}
 
 Certifications:
 ${JSON.stringify(certifications)}
@@ -312,54 +326,127 @@ Achievements:
 ${JSON.stringify(achievements)}
 
 
-IMPORTANT RULES:
+==================================================
+STRICT TRUTH RULES
+==================================================
 
-1. Never invent employment, education, projects, certifications,
-   achievements, technologies, dates, companies, job titles,
-   responsibilities, or measurable results.
+1. Never invent jobs, employers, degrees, projects,
+   certifications, dates, technologies,
+   responsibilities, awards, metrics, or achievements.
 
-2. Only use information supported by the candidate data.
+2. Only use facts supported by the candidate's
+   supplied information.
 
-3. You may improve wording, grammar, clarity, and professional
-   presentation.
+3. You may improve grammar, clarity, structure,
+   and professional wording.
 
-4. Do not create fake metrics such as "increased performance by 40%"
-   unless the candidate explicitly provided that information.
+4. Never fabricate percentages, numbers,
+   performance improvements, team sizes,
+   users, revenue, rankings, or other metrics.
 
-5. Do not add a technology to the candidate's actual Skills section
-   simply because it appears in the job description.
+5. Preserve the candidate's contact information
+   exactly.
 
-6. If a target role is provided, identify relevant skills separately.
+6. Never turn a job-description requirement
+   into a claimed candidate skill.
 
-7. Distinguish between:
-   - skills supported by the candidate
-   - recommended skills for the target role
-   - missing skills
+7. ATS keywords can be identified separately
+   in atsKeywords.
 
-8. If a job description is provided, prioritize its important
-   requirements and ATS terminology.
+8. Unsupported keywords must NOT be added
+   to the candidate's actual skills.
 
-9. Keep the resume concise and professional.
+9. Do not create experience or projects
+   merely to fill space.
 
-10. Write strong achievement-oriented bullets only when supported
-    by the candidate's actual information.
 
-11. The resume should work well with ATS systems.
+==================================================
+ONE-PAGE RULES
+==================================================
 
-12. Return ONLY valid JSON matching the supplied schema.
+Summary:
+35-55 words when enough information exists.
 
-13. Do not return Markdown.
+Skills:
+Prioritize 10-20 relevant skills that are
+actually supported.
 
-14. Do not include explanations outside the JSON object.
+Experience:
+Maximum 3 roles.
+Maximum 4 bullets per role.
+
+Projects:
+Maximum 3 projects.
+Maximum 3 bullets per project.
+
+Education:
+Maximum 2 entries.
+
+Certifications:
+Maximum 4.
+
+Achievements:
+Maximum 4.
+
+Remove:
+- repetition
+- filler
+- generic statements
+
+Use strong action verbs when truthful.
+
+Prioritize information relevant to
+the target role.
+
+If a job description is supplied,
+naturally use matching terminology only
+when the candidate's information supports it.
+
+
+==================================================
+CAREER LEVEL GUIDANCE
+==================================================
+
+Student / New Graduate:
+Prioritize education, projects, skills,
+internships, certifications, and achievements.
+
+Internship:
+Prioritize projects, practical experience,
+and relevant skills.
+
+Entry Level:
+Prioritize practical experience,
+projects, and job-relevant skills.
+
+Experienced Professional:
+Prioritize recent professional experience
+and measurable achievements only when supplied.
+
+
+==================================================
+OUTPUT
+==================================================
+
+Return ONLY valid JSON matching the
+supplied schema.
+
+No Markdown.
+
+No explanation outside JSON.
 `;
 
   return generateGeminiJSON(
+
     prompt,
 
     {
       type: "object",
 
+      additionalProperties: false,
+
       properties: {
+
         name: {
           type: "string"
         },
@@ -367,7 +454,10 @@ IMPORTANT RULES:
         contact: {
           type: "object",
 
+          additionalProperties: false,
+
           properties: {
+
             email: {
               type: "string"
             },
@@ -387,7 +477,16 @@ IMPORTANT RULES:
             github: {
               type: "string"
             }
-          }
+
+          },
+
+          required: [
+            "email",
+            "phone",
+            "location",
+            "linkedin",
+            "github"
+          ]
         },
 
         targetRole: {
@@ -419,18 +518,38 @@ IMPORTANT RULES:
           }
         },
 
+        atsKeywords: {
+          type: "array",
+          items: {
+            type: "string"
+          }
+        },
+
         experience: {
+
           type: "array",
 
           items: {
+
             type: "object",
 
+            additionalProperties: false,
+
             properties: {
+
               company: {
                 type: "string"
               },
 
               role: {
+                type: "string"
+              },
+
+              start: {
+                type: "string"
+              },
+
+              end: {
                 type: "string"
               },
 
@@ -440,22 +559,40 @@ IMPORTANT RULES:
 
               bullets: {
                 type: "array",
-
                 items: {
                   type: "string"
                 }
               }
-            }
+
+            },
+
+            required: [
+              "company",
+              "role",
+              "start",
+              "end",
+              "duration",
+              "bullets"
+            ]
           }
         },
 
         projects: {
+
           type: "array",
 
           items: {
+
             type: "object",
 
+            additionalProperties: false,
+
             properties: {
+
+              title: {
+                type: "string"
+              },
+
               name: {
                 type: "string"
               },
@@ -464,25 +601,48 @@ IMPORTANT RULES:
                 type: "string"
               },
 
+              bullets: {
+                type: "array",
+                items: {
+                  type: "string"
+                }
+              },
+
               technologies: {
                 type: "array",
-
                 items: {
                   type: "string"
                 }
               }
-            }
+
+            },
+
+            required: [
+              "title",
+              "description",
+              "bullets",
+              "technologies"
+            ]
           }
         },
 
         education: {
+
           type: "array",
 
           items: {
+
             type: "object",
 
+            additionalProperties: false,
+
             properties: {
+
               institution: {
+                type: "string"
+              },
+
+              school: {
                 type: "string"
               },
 
@@ -490,16 +650,31 @@ IMPORTANT RULES:
                 type: "string"
               },
 
+              year: {
+                type: "string"
+              },
+
+              grade: {
+                type: "string"
+              },
+
               duration: {
                 type: "string"
               }
-            }
+
+            },
+
+            required: [
+              "institution",
+              "degree",
+              "year",
+              "grade"
+            ]
           }
         },
 
         certifications: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -507,11 +682,11 @@ IMPORTANT RULES:
 
         achievements: {
           type: "array",
-
           items: {
             type: "string"
           }
         }
+
       },
 
       required: [
@@ -522,6 +697,7 @@ IMPORTANT RULES:
         "skills",
         "recommendedSkills",
         "skillGaps",
+        "atsKeywords",
         "experience",
         "projects",
         "education",
@@ -531,8 +707,8 @@ IMPORTANT RULES:
     },
 
     {
-      timeout: 60000,
-      temperature: 0.2
+      timeout: 90000,
+      temperature: 0.25
     }
   );
 }
@@ -542,41 +718,40 @@ IMPORTANT RULES:
 |--------------------------------------------------------------------------
 | Job Description → Resume Matching
 |--------------------------------------------------------------------------
-|
-| Used by:
-|
-| POST /api/ai/job-match
-|
-|--------------------------------------------------------------------------
 */
 
 async function analyzeJobDescription(
   jobDescription,
   resumeData = {}
 ) {
-  if (!jobDescription || !jobDescription.trim()) {
+
+  if (
+    !jobDescription ||
+    !jobDescription.trim()
+  ) {
     throw new Error(
       "Job description is required."
     );
   }
 
   const prompt = `
-You are an expert ATS analyst, technical recruiter,
-and career coach.
+You are an expert ATS analyst,
+technical recruiter, and career coach.
 
-Analyze the job description and compare it against
-the candidate's resume.
+Analyze the job description and compare it
+against the candidate's resume.
 
-========================
+
+==================================================
 JOB DESCRIPTION
-========================
+==================================================
 
-${jobDescription}
+${String(jobDescription).slice(0, 16000)}
 
 
-========================
+==================================================
 CANDIDATE RESUME
-========================
+==================================================
 
 ${JSON.stringify(
   resumeData,
@@ -585,9 +760,9 @@ ${JSON.stringify(
 )}
 
 
-========================
-YOUR TASK
-========================
+==================================================
+TASK
+==================================================
 
 Analyze:
 
@@ -604,25 +779,22 @@ Analyze:
 11. Candidate's missing skills
 12. Missing ATS keywords
 13. Practical recommendations
-14. Overall resume-to-job match score
+14. Overall resume-to-job match score from 0 to 100
 
 
-========================
-VERY IMPORTANT
-========================
+==================================================
+IMPORTANT
+==================================================
 
-Never assume the candidate knows something simply because
-the job description requires it.
+Only classify a skill as matched when
+the candidate resume clearly supports it.
 
-Only classify something as a MATCHED SKILL when the candidate
-resume clearly supports it.
+If a required skill is not supported,
+put it in missingSkills.
 
-If a skill is required by the job but is not supported by the
-resume, put it in missingSkills.
+Never invent:
 
-Do NOT invent:
-
-- work experience
+- experience
 - projects
 - certifications
 - technologies
@@ -630,27 +802,30 @@ Do NOT invent:
 - metrics
 - responsibilities
 
-Do not recommend adding a skill to the resume as if the candidate
-already knows it.
+Recommendations must not falsely claim
+the candidate already knows a missing skill.
 
-Recommendations should instead explain how the candidate can
-improve the resume or prepare for the role.
-
-The match score should reflect the actual overlap between the
-resume and job requirements.
+The score must reflect actual overlap between
+the supplied resume and job requirements.
 
 Return ONLY valid JSON.
+
 No Markdown.
-No explanations outside JSON.
+
+No explanation outside JSON.
 `;
 
   return generateGeminiJSON(
+
     prompt,
 
     {
       type: "object",
 
+      additionalProperties: false,
+
       properties: {
+
         jobTitle: {
           type: "string"
         },
@@ -661,7 +836,6 @@ No explanations outside JSON.
 
         requiredSkills: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -669,7 +843,6 @@ No explanations outside JSON.
 
         softSkills: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -677,7 +850,6 @@ No explanations outside JSON.
 
         toolsAndTechnologies: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -685,7 +857,6 @@ No explanations outside JSON.
 
         atsKeywords: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -693,7 +864,6 @@ No explanations outside JSON.
 
         responsibilities: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -701,7 +871,6 @@ No explanations outside JSON.
 
         matchedSkills: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -709,7 +878,6 @@ No explanations outside JSON.
 
         missingSkills: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -717,7 +885,6 @@ No explanations outside JSON.
 
         missingKeywords: {
           type: "array",
-
           items: {
             type: "string"
           }
@@ -725,11 +892,11 @@ No explanations outside JSON.
 
         recommendations: {
           type: "array",
-
           items: {
             type: "string"
           }
         }
+
       },
 
       required: [

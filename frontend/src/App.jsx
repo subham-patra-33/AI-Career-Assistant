@@ -167,10 +167,7 @@ function AppRoutes() {
                 element={<Resume />}
               />
 
-              <Route
-                path="/create-resume"
-                element={<Resume />}
-              />
+              
 
               <Route
                 path="/resumes"

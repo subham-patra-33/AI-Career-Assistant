@@ -4,6 +4,7 @@ import AuthGate from "../AuthGate";
 import API from "../../lib/api";
 import { isAuthed, getToken } from "../../lib/auth";
 import jsPDF from "jspdf";
+import { ROLE_OPTIONS, getSkillsForRole, getBulletsForRole } from "../../lib/resumeSuggestions";
 
 /* ============================================================
    EMPTY RESUME
@@ -132,6 +133,7 @@ function normalizeGeneratedResume(result) {
       company: exp?.company || exp?.organization || "",
       start: exp?.start || exp?.startDate || "",
       end: exp?.end || exp?.endDate || "",
+      duration: exp?.duration || "",
       bullets: Array.isArray(exp?.bullets)
         ? exp.bullets.map(toText).filter(Boolean)
         : exp?.description
@@ -229,6 +231,7 @@ function normalizeGeneratedResume(result) {
       year:
         education?.year ||
         education?.date ||
+        education?.duration ||
         "",
       grade:
         education?.grade ||
@@ -261,6 +264,7 @@ function Resume() {
     github: "",
 
     targetRole: "",
+    careerLevel: "Student / New Graduate",
     jobDescription: "",
 
     summary: "",
@@ -286,6 +290,43 @@ function Resume() {
 
   const [error, setError] =
     useState("");
+
+  /* ==========================================================
+     WIZARD INPUT STATE
+     Only the user-input experience is step-based; all existing
+     generation, ATS, preview and PDF functionality stays intact.
+  ========================================================== */
+  const [stepIndex, setStepIndex] = useState(0);
+  const [selectedSkills, setSelectedSkills] = useState([]);
+  const [customSkill, setCustomSkill] = useState("");
+  const [selectedBullets, setSelectedBullets] = useState([]);
+
+  const WIZARD_STEPS = [
+    { key: "role", label: "Target role" },
+    { key: "contact", label: "Contact info" },
+    { key: "profile", label: "Summary & skills" },
+    { key: "experience", label: "Experience" },
+    { key: "projects", label: "Projects" },
+    { key: "extras", label: "Education & extras" },
+    { key: "review", label: "Review & generate" },
+  ];
+
+  const stepComplete = (key) => {
+    switch (key) {
+      case "role": return Boolean(form.targetRole.trim());
+      case "contact": return Boolean(form.fullName.trim() && form.email.trim());
+      case "profile": return Boolean(form.summary.trim() || form.skills.trim());
+      case "experience": return Boolean(form.experience.trim());
+      case "projects": return Boolean(form.projects.trim());
+      case "extras": return Boolean(form.education.trim());
+      default: return false;
+    }
+  };
+
+  const goToStep = (index) => setStepIndex(Math.max(0, Math.min(index, WIZARD_STEPS.length - 1)));
+  const currentStep = WIZARD_STEPS[stepIndex];
+  const completedCount = WIZARD_STEPS.slice(0, 6).filter((s) => stepComplete(s.key)).length;
+  const completenessPct = Math.round((completedCount / 6) * 100);
 
   /* ==========================================================
      ATS UPLOAD STATE
@@ -327,6 +368,9 @@ function Resume() {
   const sourceData = useMemo(
     () => ({
       ...form,
+          name: form.fullName,
+      careerLevel: form.careerLevel,
+      resumeFormat: "single-page ATS",
 
       skills: splitList(form.skills),
 
@@ -405,945 +449,129 @@ function Resume() {
   ============================================================ */
 
   const downloadPDF = (data) => {
-    const doc = new jsPDF({
-      unit: "mm",
-      format: "a4",
-    });
+    const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+    const margin = 14;
+    const width = 210 - margin * 2;
+    const bottom = 283;
+    let y = 15;
 
-    const margin = 17;
-
-    const width =
-      210 - margin * 2;
-
-    const bottom = 282;
-
-    let y = 18;
-
-    /* ----------------------------------------------------------
-       ADD TEXT
-    ---------------------------------------------------------- */
-
-    const addText = (
-      text,
-      size = 9.5,
-      bold = false,
-      gap = 4.5
-    ) => {
-      if (
-        text === undefined ||
-        text === null ||
-        String(text).trim() === ""
-      ) {
-        return;
-      }
-
-      doc.setFont(
-        "helvetica",
-        bold ? "bold" : "normal"
-      );
-
+    const addText = (text, size = 8.6, bold = false, gap = 3.5, indent = 0) => {
+      if (text === undefined || text === null || !String(text).trim()) return;
+      doc.setFont("helvetica", bold ? "bold" : "normal");
       doc.setFontSize(size);
-
-      const lines =
-        doc.splitTextToSize(
-          String(text),
-          width
-        );
-
+      const lines = doc.splitTextToSize(String(text), width - indent);
       lines.forEach((line) => {
-        if (y > bottom) {
-          doc.addPage();
-          y = 18;
-        }
-
-        doc.text(
-          line,
-          margin,
-          y
-        );
-
+        if (y > bottom) return;
+        doc.text(line, margin + indent, y);
         y += gap;
       });
     };
 
-    /* ----------------------------------------------------------
-       SECTION
-    ---------------------------------------------------------- */
-
     const section = (title) => {
-      if (y > bottom - 12) {
-        doc.addPage();
-        y = 18;
-      }
-
-      y += 2;
-
-      doc.setFont(
-        "helvetica",
-        "bold"
-      );
-
-      doc.setFontSize(10.5);
-
-      doc.text(
-        title.toUpperCase(),
-        margin,
-        y
-      );
-
       y += 1.5;
-
-      doc.line(
-        margin,
-        y,
-        210 - margin,
-        y
-      );
-
-      y += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.text(title.toUpperCase(), margin, y);
+      y += 1.4;
+      doc.setLineWidth(0.25);
+      doc.line(margin, y, 210 - margin, y);
+      y += 3.6;
     };
 
-    /* ----------------------------------------------------------
-       HEADER
-    ---------------------------------------------------------- */
+    // Compact, ATS-safe A4 header: no icons, graphics, columns, or tables.
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text((data.fullName || "YOUR NAME").toUpperCase(), margin, y);
+    y += 5;
+    if (data.targetRole) addText(data.targetRole, 9.5, true, 3.4);
 
-    doc.setFont(
-      "helvetica",
-      "bold"
-    );
+    const contact = [data.email, data.phone, data.location, data.linkedin, data.github]
+      .filter(Boolean).join(" | ");
+    if (contact) addText(contact, 8.1, false, 3.3);
+    y += 1;
 
-    doc.setFontSize(19);
+    if (data.summary) { section("Professional Summary"); addText(data.summary, 8.5, false, 3.45); }
 
-    doc.text(
-      (
-        data.fullName ||
-        "YOUR NAME"
-      ).toUpperCase(),
-      margin,
-      y
-    );
-
-    y += 6;
-
-    if (data.targetRole) {
-      addText(
-        data.targetRole,
-        10,
-        true,
-        4.5
-      );
-    }
-
-    const contact = [
-      data.email,
-      data.phone,
-      data.location,
-      data.linkedin,
-      data.github,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    if (contact) {
-      addText(
-        contact,
-        8.5,
-        false,
-        4.5
-      );
-    }
-
-    /* ----------------------------------------------------------
-       SUMMARY
-    ---------------------------------------------------------- */
-
-    if (data.summary) {
-      section(
-        "Professional Summary"
-      );
-
-      addText(
-        data.summary,
-        9.5,
-        false,
-        4.5
-      );
-    }
-
-    /* ----------------------------------------------------------
-       SKILLS
-    ---------------------------------------------------------- */
-
-    if (
-      data.skills?.length
-    ) {
+    if (data.skills?.length) {
       section("Skills");
-
-      addText(
-        data.skills.join(" • "),
-        9.5,
-        false,
-        4.5
-      );
+      addText(data.skills.slice(0, 20).join(" • "), 8.4, false, 3.35);
     }
 
-    /* ----------------------------------------------------------
-       EXPERIENCE
-    ---------------------------------------------------------- */
-
-    if (
-      data.experience?.length
-    ) {
+    if (data.experience?.length) {
       section("Experience");
-
-      data.experience.forEach(
-        (exp) => {
-          addText(
-            [
-              exp.role,
-              exp.company,
-            ]
-              .filter(Boolean)
-              .join(" | "),
-            10,
-            true,
-            4.5
-          );
-
-          const dates = [
-            exp.start,
-            exp.end,
-          ]
-            .filter(Boolean)
-            .join(" – ");
-
-          if (dates) {
-            addText(
-              dates,
-              8.5,
-              false,
-              4
-            );
-          }
-
-          (
-            exp.bullets || []
-          ).forEach((bullet) => {
-            addText(
-              `• ${bullet}`,
-              9.2,
-              false,
-              4.3
-            );
-          });
-
-          y += 1;
-        }
-      );
+      data.experience.slice(0, 3).forEach((exp) => {
+        addText([exp.role, exp.company].filter(Boolean).join(" | "), 9, true, 3.35);
+        const dates = [exp.start, exp.end].filter(Boolean).join(" – ") || exp.duration || "";
+        if (dates) addText(dates, 7.8, false, 3.1);
+        (exp.bullets || []).slice(0, 4).forEach((b) => addText(`• ${b}`, 8.3, false, 3.35, 2));
+        y += 0.5;
+      });
     }
 
-    /* ----------------------------------------------------------
-       PROJECTS
-    ---------------------------------------------------------- */
-
-    if (
-      data.projects?.length
-    ) {
+    if (data.projects?.length) {
       section("Projects");
-
-      data.projects.forEach(
-        (project) => {
-          addText(
-            project.title ||
-              project.name ||
-              "",
-            10,
-            true,
-            4.5
-          );
-
-          if (
-            project.bullets?.length
-          ) {
-            project.bullets.forEach(
-              (bullet) => {
-                addText(
-                  `• ${bullet}`,
-                  9.2,
-                  false,
-                  4.3
-                );
-              }
-            );
-          } else if (
-            project.description
-          ) {
-            addText(
-              project.description,
-              9.2,
-              false,
-              4.3
-            );
-          }
-
-          if (
-            project.technologies
-              ?.length
-          ) {
-            addText(
-              `Technologies: ${project.technologies.join(
-                ", "
-              )}`,
-              8.8,
-              false,
-              4.2
-            );
-          }
-
-          y += 1;
-        }
-      );
+      data.projects.slice(0, 3).forEach((project) => {
+        addText(project.title || project.name || "", 9, true, 3.35);
+        (project.bullets || []).slice(0, 3).forEach((b) => addText(`• ${b}`, 8.3, false, 3.35, 2));
+        if (!(project.bullets?.length) && project.description) addText(project.description, 8.3, false, 3.35);
+        if (project.technologies?.length) addText(`Technologies: ${project.technologies.join(", ")}`, 7.9, false, 3.1);
+        y += 0.5;
+      });
     }
 
-    /* ----------------------------------------------------------
-       EDUCATION
-    ---------------------------------------------------------- */
-
-    if (
-      data.education?.length
-    ) {
+    if (data.education?.length) {
       section("Education");
-
-      data.education.forEach(
-        (education) => {
-          addText(
-            [
-              education.degree,
-              education.school,
-            ]
-              .filter(Boolean)
-              .join(" | "),
-            9.8,
-            true,
-            4.5
-          );
-
-          addText(
-            [
-              education.year,
-              education.grade,
-            ]
-              .filter(Boolean)
-              .join(" | "),
-            8.8,
-            false,
-            4.2
-          );
-        }
-      );
+      data.education.slice(0, 2).forEach((e) => {
+        addText([e.degree, e.school].filter(Boolean).join(" | "), 8.8, true, 3.3);
+        addText([e.year, e.grade].filter(Boolean).join(" | "), 7.9, false, 3.1);
+      });
     }
 
-    /* ----------------------------------------------------------
-       CERTIFICATIONS
-    ---------------------------------------------------------- */
-
-    if (
-      data.certifications?.length
-    ) {
-      section(
-        "Certifications"
-      );
-
-      data.certifications.forEach(
-        (certification) => {
-          addText(
-            `• ${certification}`,
-            9.2,
-            false,
-            4.3
-          );
-        }
-      );
+    if (data.certifications?.length) {
+      section("Certifications");
+      data.certifications.slice(0, 4).forEach((c) => addText(`• ${c}`, 8.2, false, 3.25, 2));
     }
 
-    /* ----------------------------------------------------------
-       ACHIEVEMENTS
-    ---------------------------------------------------------- */
-
-    if (
-      data.achievements?.length
-    ) {
+    if (data.achievements?.length) {
       section("Achievements");
-
-      data.achievements.forEach(
-        (achievement) => {
-          const text =
-            typeof achievement ===
-            "string"
-              ? achievement
-              : achievement?.title ||
-                achievement?.description ||
-                "";
-
-          if (text) {
-            addText(
-              `• ${text}`,
-              9.2,
-              false,
-              4.3
-            );
-          }
-        }
-      );
+      data.achievements.slice(0, 4).forEach((a) => {
+        const value = typeof a === "string" ? a : a?.title || a?.description || "";
+        if (value) addText(`• ${value}`, 8.2, false, 3.25, 2);
+      });
     }
 
-    /* ----------------------------------------------------------
-       SAFE FILE NAME
-    ---------------------------------------------------------- */
-
-    const safeName = (
-      data.fullName ||
-      "Resume"
-    )
-      .trim()
-      .replace(
-        /[^a-zA-Z0-9\s-]/g,
-        ""
-      )
-      .replace(
-        /\s+/g,
-        "-"
-      );
-
-    doc.save(
-      `${safeName}-Resume.pdf`
-    );
+    const safeName = (data.fullName || "Resume").trim().replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-");
+    doc.save(`${safeName}-Resume.pdf`);
   };
 
   /* ============================================================
      BROWSER RESUME PREVIEW
   ============================================================ */
 
-  const openResumePreview = (
-    data
-  ) => {
-    const newWindow =
-      window.open(
-        "",
-        "_blank"
-      );
-
+  const openResumePreview = (data) => {
+    const newWindow = window.open("", "_blank");
     if (!newWindow) {
-      setError(
-        "Your browser blocked the preview popup. Allow popups for this site, or use the PDF download."
-      );
-
+      setError("Your browser blocked the preview popup. Allow popups for this site, or use the PDF download.");
       return;
     }
-
-    const escape = (value) =>
-      String(value || "")
-        .replace(
-          /[&<>\"]/g,
-          (char) =>
-            ({
-              "&": "&amp;",
-              "<": "&lt;",
-              ">": "&gt;",
-              '"': "&quot;",
-            }[char])
-        );
-
-    /* ----------------------------------------------------------
-       PROJECT HTML
-    ---------------------------------------------------------- */
-
-    const projectHtml = (
-      data.projects || []
-    )
-      .map(
-        (project) => `
-          <div class="item">
-            <b>${escape(
-              project.title ||
-                project.name
-            )}</b>
-
-            ${
-              project.bullets
-                ?.length
-                ? `
-                  <ul>
-                    ${project.bullets
-                      .map(
-                        (bullet) =>
-                          `<li>${escape(
-                            bullet
-                          )}</li>`
-                      )
-                      .join("")}
-                  </ul>
-                `
-                : project.description
-                ? `<p>${escape(
-                    project.description
-                  )}</p>`
-                : ""
-            }
-
-            ${
-              project.technologies
-                ?.length
-                ? `
-                  <small>
-                    Technologies:
-                    ${escape(
-                      project.technologies.join(
-                        ", "
-                      )
-                    )}
-                  </small>
-                `
-                : ""
-            }
-          </div>
-        `
-      )
-      .join("");
-
-    /* ----------------------------------------------------------
-       EXPERIENCE HTML
-    ---------------------------------------------------------- */
-
-    const experienceHtml = (
-      data.experience || []
-    )
-      .map(
-        (experience) => `
-          <div class="item">
-
-            <b>
-              ${escape(
-                experience.role
-              )}
-
-              ${
-                experience.company
-                  ? ` | ${escape(
-                      experience.company
-                    )}`
-                  : ""
-              }
-            </b>
-
-            <small>
-              ${escape(
-                [
-                  experience.start,
-                  experience.end,
-                ]
-                  .filter(Boolean)
-                  .join(" – ")
-              )}
-            </small>
-
-            <ul>
-              ${(experience.bullets ||
-                [])
-                .map(
-                  (bullet) =>
-                    `<li>${escape(
-                      bullet
-                    )}</li>`
-                )
-                .join("")}
-            </ul>
-
-          </div>
-        `
-      )
-      .join("");
-
-    /* ----------------------------------------------------------
-       EDUCATION HTML
-    ---------------------------------------------------------- */
-
-    const educationHtml = (
-      data.education || []
-    )
-      .map(
-        (education) => `
-          <div class="item">
-
-            <b>
-              ${escape(
-                education.degree
-              )}
-            </b>
-
-            <div>
-              ${escape(
-                education.school
-              )}
-            </div>
-
-            <small>
-              ${escape(
-                [
-                  education.year,
-                  education.grade,
-                ]
-                  .filter(Boolean)
-                  .join(" | ")
-              )}
-            </small>
-
-          </div>
-        `
-      )
-      .join("");
-
-    /* ----------------------------------------------------------
-       CONTACT
-    ---------------------------------------------------------- */
-
-    const contact = [
-      data.email,
-      data.phone,
-      data.location,
-      data.linkedin,
-      data.github,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    /* ----------------------------------------------------------
-       FULL HTML DOCUMENT
-    ---------------------------------------------------------- */
-
+    const escape = (value) => String(value || "").replace(/[&<>\"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const bullets = (items = []) => items.slice(0, 4).map((b) => `<li>${escape(b)}</li>`).join("");
+    const projects = (data.projects || []).slice(0, 3).map((p) => `<div class="item"><div class="item-title">${escape(p.title || p.name)}</div>${p.bullets?.length ? `<ul>${bullets(p.bullets)}</ul>` : p.description ? `<p>${escape(p.description)}</p>` : ""}${p.technologies?.length ? `<div class="tech">Technologies: ${escape(p.technologies.join(", "))}</div>` : ""}</div>`).join("");
+    const experience = (data.experience || []).slice(0, 3).map((e) => `<div class="item"><div class="item-title">${escape([e.role,e.company].filter(Boolean).join(" | "))}</div><div class="date">${escape([e.start,e.end].filter(Boolean).join(" – ") || e.duration)}</div><ul>${bullets(e.bullets)}</ul></div>`).join("");
+    const education = (data.education || []).slice(0, 2).map((e) => `<div class="item"><div class="item-title">${escape([e.degree,e.school].filter(Boolean).join(" | "))}</div><div class="date">${escape([e.year,e.grade].filter(Boolean).join(" | "))}</div></div>`).join("");
+    const list = (items = []) => items.slice(0, 4).map((x) => `<li>${escape(typeof x === "string" ? x : x?.title || x?.description)}</li>`).join("");
+    const contact = [data.email,data.phone,data.location,data.linkedin,data.github].filter(Boolean).join(" | ");
     newWindow.document.open();
-
-    newWindow.document.documentElement.innerHTML = `
-      <head>
-
-        <meta charset="utf-8" />
-
-        <title>
-          ${escape(
-            data.fullName ||
-              "Resume"
-          )}
-        </title>
-
-        <style>
-
-          * {
-            box-sizing: border-box;
-          }
-
-          body {
-            font-family:
-              Arial,
-              Helvetica,
-              sans-serif;
-
-            color: #20242b;
-
-            max-width: 800px;
-
-            margin: 40px auto;
-
-            padding:
-              0 35px;
-
-            line-height: 1.45;
-
-            background: #ffffff;
-          }
-
-          h1 {
-            font-size: 30px;
-
-            margin:
-              0 0 4px 0;
-
-            text-transform:
-              uppercase;
-
-            letter-spacing:
-              0.2px;
-          }
-
-          h2 {
-            font-size: 14px;
-
-            text-transform:
-              uppercase;
-
-            border-bottom:
-              1px solid #333;
-
-            padding-bottom: 4px;
-
-            margin-top: 22px;
-
-            margin-bottom: 8px;
-          }
-
-          .role {
-            font-size: 13px;
-
-            font-weight: 600;
-
-            margin-bottom: 3px;
-          }
-
-          .contact {
-            font-size: 12px;
-
-            color: #555;
-
-            margin-bottom: 5px;
-          }
-
-          .item {
-            margin-bottom: 12px;
-          }
-
-          .item b {
-            font-size: 13px;
-          }
-
-          .item small {
-            display: block;
-
-            font-size: 11px;
-
-            color: #666;
-
-            margin-top: 2px;
-          }
-
-          p {
-            margin:
-              4px 0;
-          }
-
-          ul {
-            margin:
-              5px 0;
-
-            padding-left:
-              20px;
-          }
-
-          li {
-            margin-bottom:
-              2px;
-
-            font-size: 12px;
-          }
-
-          .skills {
-            font-size: 12px;
-          }
-
-          @media print {
-
-            body {
-              margin: 0;
-
-              max-width:
-                none;
-
-              padding:
-                15mm 17mm;
-            }
-
-          }
-
-        </style>
-
-      </head>
-
-      <body>
-
-        <h1>
-          ${escape(
-            data.fullName ||
-              "YOUR NAME"
-          )}
-        </h1>
-
-        ${
-          data.targetRole
-            ? `
-              <div class="role">
-                ${escape(
-                  data.targetRole
-                )}
-              </div>
-            `
-            : ""
-        }
-
-        ${
-          contact
-            ? `
-              <div class="contact">
-                ${escape(
-                  contact
-                )}
-              </div>
-            `
-            : ""
-        }
-
-        ${
-          data.summary
-            ? `
-              <h2>
-                Professional Summary
-              </h2>
-
-              <p>
-                ${escape(
-                  data.summary
-                )}
-              </p>
-            `
-            : ""
-        }
-
-        ${
-          data.skills?.length
-            ? `
-              <h2>
-                Skills
-              </h2>
-
-              <p class="skills">
-                ${escape(
-                  data.skills.join(
-                    " • "
-                  )
-                )}
-              </p>
-            `
-            : ""
-        }
-
-        ${
-          experienceHtml
-            ? `
-              <h2>
-                Experience
-              </h2>
-
-              ${experienceHtml}
-            `
-            : ""
-        }
-
-        ${
-          projectHtml
-            ? `
-              <h2>
-                Projects
-              </h2>
-
-              ${projectHtml}
-            `
-            : ""
-        }
-
-        ${
-          educationHtml
-            ? `
-              <h2>
-                Education
-              </h2>
-
-              ${educationHtml}
-            `
-            : ""
-        }
-
-        ${
-          data.certifications
-            ?.length
-            ? `
-              <h2>
-                Certifications
-              </h2>
-
-              <ul>
-                ${data.certifications
-                  .map(
-                    (certification) =>
-                      `<li>${escape(
-                        certification
-                      )}</li>`
-                  )
-                  .join("")}
-              </ul>
-            `
-            : ""
-        }
-
-        ${
-          data.achievements
-            ?.length
-            ? `
-              <h2>
-                Achievements
-              </h2>
-
-              <ul>
-                ${data.achievements
-                  .map(
-                    (achievement) => {
-                      const text =
-                        typeof achievement ===
-                        "string"
-                          ? achievement
-                          : achievement?.title ||
-                            achievement?.description ||
-                            "";
-
-                      return `<li>${escape(
-                        text
-                      )}</li>`;
-                    }
-                  )
-                  .join("")}
-              </ul>
-            `
-            : ""
-        }
-
-        ${
-          data.atsKeywords
-            ?.length
-            ? `
-              <h2>
-                ATS Keywords
-              </h2>
-
-              <p class="skills">
-                ${escape(
-                  data.atsKeywords.join(
-                    " • "
-                  )
-                )}
-              </p>
-            `
-            : ""
-        }
-
-      </body>
-    `;
-
+    newWindow.document.documentElement.innerHTML = `<!doctype html><html><head><meta charset="utf-8"><title>${escape(data.fullName || "Resume")}</title><style>
+      *{box-sizing:border-box} body{margin:0;background:#eef1f4;font-family:Arial,Helvetica,sans-serif;color:#1f2933} .paper{width:210mm;min-height:297mm;margin:20px auto;background:#fff;padding:14mm 14mm 13mm;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+      h1{font-size:27px;margin:0 0 3px;text-transform:uppercase;letter-spacing:.2px} .role{font-size:12px;font-weight:700;margin-bottom:3px}.contact{font-size:10px;color:#4b5563;margin-bottom:8px;word-break:break-word}h2{font-size:11px;margin:9px 0 5px;text-transform:uppercase;border-bottom:1px solid #1f2933;padding-bottom:3px;letter-spacing:.25px}.summary,.skills,.item,p,li{font-size:10px;line-height:1.32}.summary{margin:0 0 2px}.skills{margin:0}.item{margin-bottom:6px}.item-title{font-weight:700;font-size:10.3px}.date,.tech{font-size:8.8px;color:#5f6b76;margin-top:1px}ul{margin:2px 0 0;padding-left:16px}li{margin:0 0 1px}p{margin:2px 0}@media print{body{background:#fff}.paper{margin:0;box-shadow:none;width:210mm;min-height:297mm;page-break-after:always}}
+    </style></head><body><main class="paper">
+      <h1>${escape(data.fullName || "YOUR NAME")}</h1>${data.targetRole ? `<div class="role">${escape(data.targetRole)}</div>` : ""}${contact ? `<div class="contact">${escape(contact)}</div>` : ""}
+      ${data.summary ? `<h2>Professional Summary</h2><p class="summary">${escape(data.summary)}</p>` : ""}
+      ${data.skills?.length ? `<h2>Skills</h2><p class="skills">${escape(data.skills.slice(0,20).join(" • "))}</p>` : ""}
+      ${experience ? `<h2>Experience</h2>${experience}` : ""}${projects ? `<h2>Projects</h2>${projects}` : ""}${education ? `<h2>Education</h2>${education}` : ""}
+      ${data.certifications?.length ? `<h2>Certifications</h2><ul>${list(data.certifications)}</ul>` : ""}${data.achievements?.length ? `<h2>Achievements</h2><ul>${list(data.achievements)}</ul>` : ""}
+    </main></body></html>`;
     newWindow.document.close();
   };
 
@@ -1384,7 +612,7 @@ function Resume() {
       const timeout = setTimeout(
         () =>
           controller.abort(),
-        60000
+        180000
       );
 
       let response;
@@ -1639,41 +867,6 @@ function Resume() {
         </div>
 
         {/* ======================================================
-            GENERATE BUTTON
-        ====================================================== */}
-
-        {authed ? (
-          <div className="mb-5">
-
-            <button
-              type="button"
-              onClick={
-                handleGenerate
-              }
-              className="btn btn-accent w-full py-3"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner" />
-
-                  AI is analyzing
-                  your profile and
-                  job requirements…
-                </>
-              ) : (
-                "Generate professional ATS resume"
-              )}
-            </button>
-
-          </div>
-        ) : (
-          <AuthGate
-            action="generate an AI resume"
-          />
-        )}
-
-        {/* ======================================================
             ATS UPLOAD
         ====================================================== */}
 
@@ -1757,315 +950,244 @@ function Resume() {
               FORM
           ==================================================== */}
 
-          <form
-            onSubmit={
-              handleGenerate
-            }
-            className="card space-y-4 p-5"
-          >
+          <form onSubmit={handleGenerate} className="card p-5">
 
-            {/* --------------------------------------------------
-                TARGET ROLE
-            -------------------------------------------------- */}
-
-            <div>
-
-              <h2 className="font-display font-semibold">
-                1. Target role
-              </h2>
-
-              <p className="text-xs muted">
-                The target role and job
-                description drive ATS
-                keyword optimization.
-              </p>
-
+            {/* Wizard section navigation */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="label" style={{ marginBottom: 0 }}>Your information</span>
+                <span className="stamp stamp-teal" style={{ fontSize: "0.62rem", padding: "0.2em 0.6em" }}>{completenessPct}%</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {WIZARD_STEPS.map((step, i) => {
+                  const done = i < 6 && stepComplete(step.key);
+                  const active = i === stepIndex;
+                  return (
+                    <button
+                      key={step.key}
+                      type="button"
+                      onClick={() => goToStep(i)}
+                      className={`nav-btn ${active ? "active" : ""}`}
+                      style={{ opacity: active || done ? 1 : 0.72 }}
+                    >
+                      <span style={{
+                        width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "0.65rem", fontWeight: 700,
+                        border: `1.5px solid ${done ? "var(--color-teal)" : "var(--color-border)"}`,
+                        color: done ? "var(--color-teal)" : "var(--color-muted-foreground)",
+                        background: done ? "color-mix(in srgb, var(--color-teal) 10%, transparent)" : "transparent"
+                      }}>
+                        {done ? "✓" : i + 1}
+                      </span>
+                      {step.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <input
-              className="input"
-              placeholder="Target Job Role * e.g. Full Stack Developer"
-              value={
-                form.targetRole
-              }
-              onChange={update(
-                "targetRole"
-              )}
-            />
-
-            <textarea
-              className="textarea"
-              rows="5"
-              placeholder="Paste the job description here (recommended for ATS optimization)"
-              value={
-                form.jobDescription
-              }
-              onChange={update(
-                "jobDescription"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                CONTACT
-            -------------------------------------------------- */}
-
-            <div>
-
-              <h2 className="font-display font-semibold">
-                2. Contact information
-              </h2>
-
-              <p className="text-xs muted mt-1">
-                These details are taken
-                directly from your input
-                and are never replaced by
-                AI-generated information.
-              </p>
-
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-
-              <input
-                className="input"
-                placeholder="Full Name *"
-                value={
-                  form.fullName
-                }
-                onChange={update(
-                  "fullName"
-                )}
-              />
-
-              <input
-                className="input"
-                type="email"
-                placeholder="Email *"
-                value={
-                  form.email
-                }
-                onChange={update(
-                  "email"
-                )}
-              />
-
-              <input
-                className="input"
-                placeholder="Phone"
-                value={
-                  form.phone
-                }
-                onChange={update(
-                  "phone"
-                )}
-              />
-
-              <input
-                className="input"
-                placeholder="Location"
-                value={
-                  form.location
-                }
-                onChange={update(
-                  "location"
-                )}
-              />
-
-              <input
-                className="input"
-                placeholder="LinkedIn URL"
-                value={
-                  form.linkedin
-                }
-                onChange={update(
-                  "linkedin"
-                )}
-              />
-
-              <input
-                className="input"
-                placeholder="GitHub / Portfolio URL"
-                value={
-                  form.github
-                }
-                onChange={update(
-                  "github"
-                )}
-              />
-
-            </div>
-
-            {/* --------------------------------------------------
-                PROFESSIONAL PROFILE
-            -------------------------------------------------- */}
-
-            <div>
-
-              <h2 className="font-display font-semibold">
-                3. Professional profile
-              </h2>
-
-            </div>
-
-            <textarea
-              className="textarea"
-              rows="4"
-              placeholder="Existing summary (optional). AI will rewrite it professionally."
-              value={
-                form.summary
-              }
-              onChange={update(
-                "summary"
-              )}
-            />
-
-            <textarea
-              className="textarea"
-              rows="3"
-              placeholder="Skills, comma separated — e.g. React, JavaScript, MongoDB, Git"
-              value={
-                form.skills
-              }
-              onChange={update(
-                "skills"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                EXPERIENCE
-            -------------------------------------------------- */}
-
-            <div>
-
-              <h2 className="font-display font-semibold">
-                4. Experience
-              </h2>
-
-              <p className="text-xs muted">
-                Enter your actual
-                experience. Include
-                company, role, dates and
-                responsibilities.
-                Separate entries with
-                blank lines.
-              </p>
-
-            </div>
-
-            <textarea
-              className="textarea"
-              rows="7"
-              placeholder={`Example:
-Web Developer Intern | Gauravgo Games | June 2026 - Present
-Worked on SEO-optimized gaming website and frontend development.`}
-              value={
-                form.experience
-              }
-              onChange={update(
-                "experience"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                PROJECTS
-            -------------------------------------------------- */}
-
-            <div>
-
-              <h2 className="font-display font-semibold">
-                5. Projects
-              </h2>
-
-              <p className="text-xs muted">
-                Include what you built,
-                your contribution, and
-                technologies you actually
-                used.
-              </p>
-
-            </div>
-
-            <textarea
-              className="textarea"
-              rows="7"
-              placeholder={`Example:
-AI Resume Generator
-Built an AI-powered resume generation application.
-Technologies: React, JavaScript, Express, MongoDB`}
-              value={
-                form.projects
-              }
-              onChange={update(
-                "projects"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                EDUCATION
-            -------------------------------------------------- */}
-
-            <div>
-
-              <h2 className="font-display font-semibold">
-                6. Education
-              </h2>
-
-            </div>
-
-            <textarea
-              className="textarea"
-              rows="4"
-              placeholder="Degree | Institution | Year | CGPA/Percentage"
-              value={
-                form.education
-              }
-              onChange={update(
-                "education"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                CERTIFICATIONS
-            -------------------------------------------------- */}
-
-            <textarea
-              className="textarea"
-              rows="3"
-              placeholder="Certifications, comma separated"
-              value={
-                form.certifications
-              }
-              onChange={update(
-                "certifications"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                ACHIEVEMENTS
-            -------------------------------------------------- */}
-
-            <textarea
-              className="textarea"
-              rows="3"
-              placeholder="Achievements, comma separated"
-              value={
-                form.achievements
-              }
-              onChange={update(
-                "achievements"
-              )}
-            />
-
-            {/* --------------------------------------------------
-                ERROR
-            -------------------------------------------------- */}
-
-            {error && (
-              <p className="rounded-md border border-brick/30 bg-brick/10 px-3 py-2 text-sm text-brick">
-                {error}
-              </p>
+            {/* Target role */}
+            {currentStep.key === "role" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Target role</h2>
+                <p className="text-xs muted -mt-2">Pick the closest match — this unlocks relevant skill and bullet suggestions in the next steps.</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {ROLE_OPTIONS.map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, targetRole: role }))}
+                      className="btn"
+                      style={{
+                        justifyContent: "flex-start",
+                        border: `1.5px solid ${form.targetRole === role ? "var(--color-teal)" : "var(--color-border)"}`,
+                        background: form.targetRole === role ? "color-mix(in srgb, var(--color-teal) 10%, transparent)" : "transparent",
+                        color: form.targetRole === role ? "var(--color-teal)" : "var(--color-foreground)",
+                      }}
+                    >
+                      {role}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="label">Not listed? Type your own</label>
+                  <input className="input" placeholder="e.g. Cloud Security Analyst" value={form.targetRole} onChange={update("targetRole")} />
+                </div>
+                <div>
+                  <label className="label">Career level</label>
+                  <select className="input" value={form.careerLevel} onChange={update("careerLevel")}>
+                    <option>Student / New Graduate</option>
+                    <option>Internship</option>
+                    <option>Entry Level</option>
+                    <option>Experienced Professional</option>
+                  </select>
+                  <p className="text-xs muted mt-1">This helps the AI control resume length, wording, and section priority.</p>
+                </div>
+                <div>
+                  <label className="label">Job description (recommended)</label>
+                  <textarea className="textarea" rows="6" placeholder="Paste the job description here for stronger ATS keyword matching" value={form.jobDescription} onChange={update("jobDescription")} />
+                  <p className="text-xs muted mt-1">For the best ATS result, paste the exact job description from the vacancy.</p>
+                </div>
+              </div>
             )}
 
+            {/* Contact */}
+            {currentStep.key === "contact" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Contact information</h2>
+                <p className="text-xs muted -mt-2">These details are taken directly from your input and are never replaced by AI-generated information.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div><label className="label">Full name *</label><input className="input" value={form.fullName} onChange={update("fullName")} /></div>
+                  <div><label className="label">Email *</label><input className="input" type="email" value={form.email} onChange={update("email")} /></div>
+                  <div><label className="label">Phone</label><input className="input" value={form.phone} onChange={update("phone")} /></div>
+                  <div><label className="label">Location</label><input className="input" value={form.location} onChange={update("location")} /></div>
+                  <div><label className="label">LinkedIn URL</label><input className="input" value={form.linkedin} onChange={update("linkedin")} /></div>
+                  <div><label className="label">GitHub / Portfolio URL</label><input className="input" value={form.github} onChange={update("github")} /></div>
+                </div>
+              </div>
+            )}
+
+            {/* Summary & skills */}
+            {currentStep.key === "profile" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Summary & skills</h2>
+                <div>
+                  <label className="label">Existing summary (optional)</label>
+                  <textarea className="textarea" rows="4" placeholder="AI will rewrite it professionally" value={form.summary} onChange={update("summary")} />
+                </div>
+                <div>
+                  <label className="label">Select your skills</label>
+                  <p className="text-xs muted mb-2">Suggested for {form.targetRole || "your role"} — tap to select, or add your own below.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {getSkillsForRole(form.targetRole).map((skill) => {
+                      const active = selectedSkills.includes(skill);
+                      return (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => {
+                            const next = active ? selectedSkills.filter((s) => s !== skill) : [...selectedSkills, skill];
+                            setSelectedSkills(next);
+                            setForm((prev) => ({ ...prev, skills: next.join(", ") }));
+                          }}
+                          className="btn"
+                          style={{
+                            padding: "0.35em 0.7em",
+                            border: `1.5px solid ${active ? "var(--color-teal)" : "var(--color-border)"}`,
+                            color: active ? "var(--color-teal)" : "var(--color-foreground)",
+                            background: active ? "color-mix(in srgb, var(--color-teal) 10%, transparent)" : "transparent",
+                          }}
+                        >
+                          {active ? "✓ " : "+ "}{skill}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <input className="input" placeholder="Add a custom skill" value={customSkill} onChange={(e) => setCustomSkill(e.target.value)} />
+                    <button type="button" className="btn btn-secondary" onClick={() => {
+                      if (!customSkill.trim()) return;
+                      const next = [...selectedSkills, customSkill.trim()];
+                      setSelectedSkills(next);
+                      setForm((prev) => ({ ...prev, skills: next.join(", ") }));
+                      setCustomSkill("");
+                    }}>Add</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Experience */}
+            {currentStep.key === "experience" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Experience</h2>
+                <p className="text-xs muted -mt-2">Leave blank if you're a fresher — that's fine.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <input className="input" id="resume-exp-role" placeholder="Job title (e.g. Web Developer Intern)" />
+                  <input className="input" id="resume-exp-company" placeholder="Company" />
+                  <input className="input" id="resume-exp-start" placeholder="Start date (e.g. June 2026)" />
+                  <input className="input" id="resume-exp-end" placeholder="End date (or Present)" />
+                </div>
+                <div>
+                  <label className="label">Suggested bullet points</label>
+                  <p className="text-xs muted mb-2">Based on {form.targetRole || "your role"} — select the ones that apply.</p>
+                  <div className="space-y-2">
+                    {getBulletsForRole(form.targetRole).map((bullet, i) => {
+                      const active = selectedBullets.includes(bullet);
+                      return (
+                        <label key={i} className="flex items-start gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={active} onChange={() => setSelectedBullets((prev) => active ? prev.filter((b) => b !== bullet) : [...prev, bullet])} className="mt-1" />
+                          <span>{bullet}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button type="button" className="btn btn-primary w-full" onClick={() => {
+                  const role = document.getElementById("resume-exp-role").value;
+                  const company = document.getElementById("resume-exp-company").value;
+                  const start = document.getElementById("resume-exp-start").value;
+                  const end = document.getElementById("resume-exp-end").value;
+                  const header = [role, company].filter(Boolean).join(" | ");
+                  const dates = [start, end].filter(Boolean).join(" - ");
+                  const block = [header, dates, ...selectedBullets].filter(Boolean).join("\n");
+                  if (!block) return;
+                  setForm((prev) => ({ ...prev, experience: prev.experience ? `${prev.experience}\n\n${block}` : block }));
+                  setSelectedBullets([]);
+                  document.getElementById("resume-exp-role").value = "";
+                  document.getElementById("resume-exp-company").value = "";
+                  document.getElementById("resume-exp-start").value = "";
+                  document.getElementById("resume-exp-end").value = "";
+                }}>Add this experience</button>
+                {form.experience && <textarea className="textarea" rows="5" placeholder="Your experience entries" value={form.experience} onChange={update("experience")} />}
+              </div>
+            )}
+
+            {/* Projects */}
+            {currentStep.key === "projects" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Projects</h2>
+                <p className="text-xs muted -mt-2">Include what you built, your contribution, and technologies you actually used.</p>
+                <textarea className="textarea" rows="10" placeholder={"Example:\nAI Resume Generator\nBuilt an AI-powered resume generation application.\nTechnologies: React, JavaScript, Express, MongoDB"} value={form.projects} onChange={update("projects")} />
+              </div>
+            )}
+
+            {/* Education & extras */}
+            {currentStep.key === "extras" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Education & extras</h2>
+                <div><label className="label">Education</label><textarea className="textarea" rows="3" placeholder="Degree | Institution | Year | CGPA/Percentage" value={form.education} onChange={update("education")} /></div>
+                <div><label className="label">Certifications, comma separated</label><textarea className="textarea" rows="2" value={form.certifications} onChange={update("certifications")} /></div>
+                <div><label className="label">Achievements, comma separated</label><textarea className="textarea" rows="2" value={form.achievements} onChange={update("achievements")} /></div>
+              </div>
+            )}
+
+            {/* Review & generate */}
+            {currentStep.key === "review" && (
+              <div className="space-y-4">
+                <h2 className="font-display font-semibold text-lg">Review & generate</h2>
+                <p className="text-sm muted">Check the live preview on the right, then generate your ATS-optimized resume.</p>
+                <div className="flex flex-wrap gap-2">
+                  {WIZARD_STEPS.slice(0, 6).map((step) => (
+                    <span key={step.key} className={`stamp ${stepComplete(step.key) ? "stamp-teal" : ""}`}>
+                      {stepComplete(step.key) ? "✓ " : "— "}{step.label}
+                    </span>
+                  ))}
+                </div>
+                {authed ? (
+                  <button type="submit" className="btn btn-accent w-full py-3" disabled={loading}>
+                    {loading ? <><span className="spinner" /> AI is analyzing your profile and job requirements…</> : "Generate my ATS-ready one-page resume"}
+                  </button>
+                ) : <AuthGate action="generate an AI resume" />}
+                {error && <p className="text-sm text-brick bg-brick/10 border border-brick/30 rounded-md px-3 py-2">{error}</p>}
+              </div>
+            )}
+
+            <div className="flex justify-between mt-6 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
+              <button type="button" onClick={() => goToStep(stepIndex - 1)} className="btn btn-secondary" disabled={stepIndex === 0}>Back</button>
+              {stepIndex < WIZARD_STEPS.length - 1 && <button type="button" onClick={() => goToStep(stepIndex + 1)} className="btn btn-primary">Continue</button>}
+            </div>
           </form>
 
           {/* ====================================================
