@@ -13,9 +13,11 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ===== ROUTES =====
+// ===== ROUTES =====
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/resumes', require('./routes/resumes'));
 app.use('/api/ai', require('./routes/aiResume'));
+app.use('/api/ai', require('./routes/resumeImport'));
 
 // Root route (friendly message instead of default "Cannot GET /")
 app.get('/', (req, res) => {

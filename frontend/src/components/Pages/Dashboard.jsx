@@ -99,20 +99,33 @@ function Dashboard() {
   // ==========================================================
 
   return (
-    <div className="w-full h-full overflow-y-auto">
+    <div
+      className="
+        w-full
+        min-w-0
+        min-h-full
+        bg-[#f7f8fc]
+        text-slate-900
+      "
+    >
+
+      {/* ======================================================
+          FULL-WIDTH DASHBOARD CONTENT
+          ====================================================== */}
 
       <div
         className="
-          max-w-6xl
-          mx-auto
-          px-4
-          sm:px-6
-          lg:px-8
+          w-full
+          min-w-0
+          px-5
           py-7
-          md:py-9
+          sm:px-7
+          sm:py-8
+          lg:px-10
+          lg:py-9
+          xl:px-12
         "
       >
-
 
         {/* ====================================================
             HEADER
@@ -121,19 +134,24 @@ function Dashboard() {
         <div
           className="
             flex
+            w-full
+            min-w-0
             flex-col
+            gap-5
+            pb-8
+            animate-fade
             sm:flex-row
             sm:items-end
             sm:justify-between
-            gap-5
-            mb-8
-            animate-fade
           "
         >
 
-          <div>
+          <div className="min-w-0">
 
-            <div className="flex items-center gap-3 mb-4">
+            <div className="mb-4 flex items-center gap-3">
+
+              {/* Existing back button.
+                  Do NOT add another one in App.jsx. */}
 
               <BackButton fallbackRoute="/home" />
 
@@ -148,10 +166,11 @@ function Dashboard() {
             <h1
               className="
                 text-3xl
-                md:text-4xl
                 font-display
                 font-bold
                 tracking-tight
+                md:text-4xl
+                lg:text-5xl
               "
             >
               Build your{" "}
@@ -164,11 +183,11 @@ function Dashboard() {
             <p
               className="
                 muted
-                mt-2
-                max-w-2xl
+                mt-3
+                max-w-3xl
                 text-sm
-                md:text-base
                 leading-relaxed
+                md:text-base
               "
             >
               Create polished, ATS-friendly resumes
@@ -179,9 +198,12 @@ function Dashboard() {
           </div>
 
 
-          {/* Logout */}
+          {/* ==================================================
+              LOGOUT
+              ================================================== */}
 
           <button
+            type="button"
             onClick={handleLogout}
             className="
               btn
@@ -198,7 +220,6 @@ function Dashboard() {
         </div>
 
 
-
         {/* ====================================================
             MAIN AI HERO
             ==================================================== */}
@@ -209,11 +230,14 @@ function Dashboard() {
             ai-glow
             tech-grid
             relative
+            mb-7
+            w-full
+            min-w-0
             overflow-hidden
             p-6
-            md:p-9
-            mb-6
             animate-slide-up
+            sm:p-7
+            lg:p-10
           "
         >
 
@@ -221,32 +245,34 @@ function Dashboard() {
             className="
               relative
               z-10
-              max-w-3xl
+              w-full
+              max-w-4xl
             "
           >
 
-            {/* AI status */}
+            {/* AI STATUS */}
 
             <div
               className="
+                mb-6
                 flex
                 items-center
                 gap-3
-                mb-6
               "
             >
 
               <div
                 className="
-                  w-11
-                  h-11
-                  rounded-xl
-                  bg-indigo-500/10
-                  border
-                  border-indigo-500/10
                   flex
+                  h-11
+                  w-11
+                  shrink-0
                   items-center
                   justify-center
+                  rounded-xl
+                  border
+                  border-indigo-500/10
+                  bg-indigo-500/10
                 "
               >
                 <WandSparkles
@@ -256,31 +282,26 @@ function Dashboard() {
               </div>
 
 
-              <div>
+              <div className="min-w-0">
 
-                <p
-                  className="
-                    text-sm
-                    font-semibold
-                  "
-                >
+                <p className="text-sm font-semibold">
                   AI Professional Resume Maker
                 </p>
 
                 <div
                   className="
+                    muted
+                    mt-1
                     flex
                     items-center
                     gap-2
-                    mt-1
                     text-xs
-                    muted
                   "
                 >
                   <span
                     className="
-                      w-1.5
                       h-1.5
+                      w-1.5
                       rounded-full
                       bg-green-500
                       animate-pulse
@@ -288,7 +309,6 @@ function Dashboard() {
                   />
 
                   AI engine ready
-
                 </div>
 
               </div>
@@ -296,16 +316,17 @@ function Dashboard() {
             </div>
 
 
-            {/* Hero heading */}
+            {/* HERO HEADING */}
 
             <h2
               className="
                 text-3xl
-                md:text-5xl
                 font-display
                 font-bold
                 leading-[1.05]
                 tracking-tight
+                md:text-5xl
+                lg:text-6xl
               "
             >
               Turn your experience
@@ -322,10 +343,10 @@ function Dashboard() {
               className="
                 muted
                 mt-5
-                max-w-xl
+                max-w-2xl
                 text-sm
+                leading-7
                 md:text-base
-                leading-relaxed
               "
             >
               Answer a few questions about yourself
@@ -335,18 +356,19 @@ function Dashboard() {
             </p>
 
 
-            {/* Hero buttons */}
+            {/* HERO BUTTONS */}
 
             <div
               className="
+                mt-7
                 flex
                 flex-wrap
                 gap-3
-                mt-7
               "
             >
 
               <button
+                type="button"
                 onClick={() => navigate("/resume")}
                 className="btn btn-primary"
               >
@@ -357,6 +379,7 @@ function Dashboard() {
 
 
               <button
+                type="button"
                 onClick={() =>
                   navigate("/total-resumes")
                 }
@@ -368,15 +391,15 @@ function Dashboard() {
             </div>
 
 
-            {/* Feature list */}
+            {/* FEATURE LIST */}
 
             <div
               className="
+                mt-8
                 flex
                 flex-wrap
-                gap-x-6
+                gap-x-7
                 gap-y-3
-                mt-8
                 text-xs
                 muted
               "
@@ -428,46 +451,47 @@ function Dashboard() {
 
           <div
             className="
-              hidden
-              lg:flex
               absolute
-              right-12
               bottom-8
-              w-44
+              right-10
+              hidden
               h-44
+              w-44
+              items-center
+              justify-center
               rounded-full
               border
               border-indigo-500/10
-              items-center
-              justify-center
               opacity-60
+              lg:flex
+              xl:right-20
             "
           >
 
             <div
               className="
-                w-32
+                flex
                 h-32
+                w-32
+                items-center
+                justify-center
                 rounded-full
                 border
                 border-purple-500/15
-                flex
-                items-center
-                justify-center
               "
             >
 
               <div
                 className="
-                  w-20
-                  h-20
-                  rounded-full
-                  bg-indigo-500/5
-                  border
-                  border-indigo-500/20
                   flex
+                  h-20
+                  w-20
                   items-center
                   justify-center
+                  rounded-full
+                  border
+                  border-indigo-500/20
+                  bg-indigo-500/5
                   animate-glow
                 "
               >
@@ -486,54 +510,48 @@ function Dashboard() {
         </section>
 
 
-
         {/* ====================================================
             QUICK STATS
             ==================================================== */}
 
-        <div
+        <section
           className="
+            mb-9
             grid
+            w-full
+            min-w-0
             grid-cols-1
-            sm:grid-cols-3
             gap-4
-            mb-8
+            sm:grid-cols-3
           "
         >
 
           {/* RESUMES */}
 
-          <div className="card p-5">
+          <div className="card min-w-0 p-5">
 
-            <div
-              className="
-                flex
-                items-start
-                justify-between
-              "
-            >
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
 
                 <p
                   className="
+                    muted
                     text-[11px]
                     font-semibold
                     uppercase
                     tracking-[0.12em]
-                    muted
                   "
                 >
                   Resumes
                 </p>
 
-
                 <p
                   className="
+                    mt-2
                     text-3xl
                     font-display
                     font-bold
-                    mt-2
                   "
                 >
                   {loading
@@ -546,27 +564,25 @@ function Dashboard() {
 
               <div
                 className="
-                  w-10
-                  h-10
-                  rounded-xl
-                  bg-teal/10
                   flex
+                  h-10
+                  w-10
+                  shrink-0
                   items-center
                   justify-center
+                  rounded-xl
+                  bg-teal/10
                 "
               >
-
                 <FileText
                   size={19}
                   className="text-teal"
                 />
-
               </div>
 
             </div>
 
-
-            <p className="text-xs muted mt-3">
+            <p className="muted mt-3 text-xs">
               {counts.resumes === 0
                 ? "Your first resume starts here."
                 : "Saved in your workspace."}
@@ -575,40 +591,32 @@ function Dashboard() {
           </div>
 
 
-
           {/* ATS */}
 
-          <div className="card p-5">
+          <div className="card min-w-0 p-5">
 
-            <div
-              className="
-                flex
-                items-start
-                justify-between
-              "
-            >
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
 
                 <p
                   className="
+                    muted
                     text-[11px]
                     font-semibold
                     uppercase
                     tracking-[0.12em]
-                    muted
                   "
                 >
                   Optimization
                 </p>
 
-
                 <p
                   className="
+                    mt-2
                     text-3xl
                     font-display
                     font-bold
-                    mt-2
                   "
                 >
                   ATS
@@ -619,67 +627,57 @@ function Dashboard() {
 
               <div
                 className="
-                  w-10
-                  h-10
-                  rounded-xl
-                  bg-green-500/10
                   flex
+                  h-10
+                  w-10
+                  shrink-0
                   items-center
                   justify-center
+                  rounded-xl
+                  bg-green-500/10
                 "
               >
-
                 <BarChart3
                   size={19}
                   className="text-green-500"
                 />
-
               </div>
 
             </div>
 
-
-            <p className="text-xs muted mt-3">
+            <p className="muted mt-3 text-xs">
               Structured for applicant tracking systems.
             </p>
 
           </div>
 
 
-
           {/* AI ENGINE */}
 
-          <div className="card p-5">
+          <div className="card min-w-0 p-5">
 
-            <div
-              className="
-                flex
-                items-start
-                justify-between
-              "
-            >
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
 
                 <p
                   className="
+                    muted
                     text-[11px]
                     font-semibold
                     uppercase
                     tracking-[0.12em]
-                    muted
                   "
                 >
                   AI engine
                 </p>
 
-
                 <p
                   className="
+                    mt-2
                     text-3xl
                     font-display
                     font-bold
-                    mt-2
                   "
                 >
                   Ready
@@ -690,306 +688,446 @@ function Dashboard() {
 
               <div
                 className="
-                  w-10
-                  h-10
-                  rounded-xl
-                  bg-purple-500/10
                   flex
+                  h-10
+                  w-10
+                  shrink-0
                   items-center
                   justify-center
+                  rounded-xl
+                  bg-purple-500/10
                 "
               >
-
                 <Sparkles
                   size={19}
                   className="text-purple-500"
                 />
-
               </div>
 
             </div>
 
-
-            <p className="text-xs muted mt-3">
+            <p className="muted mt-3 text-xs">
               Generate stronger resume content.
             </p>
 
           </div>
 
-        </div>
-
+        </section>
 
 
         {/* ====================================================
             WORKSPACE HEADER
             ==================================================== */}
 
-        <div className="mb-4">
+        <section className="w-full min-w-0">
 
-          <h2
+          <div className="mb-5">
+
+            <h2
+              className="
+                text-xl
+                font-display
+                font-semibold
+              "
+            >
+              Your workspace
+            </h2>
+
+            <p className="muted mt-1 text-sm">
+              Everything you need to build and improve
+              your resume.
+            </p>
+
+          </div>
+
+
+          {/* ==================================================
+              WORKSPACE CARDS
+              ================================================== */}
+
+          <div
             className="
-              text-xl
-              font-display
-              font-semibold
+              grid
+              w-full
+              min-w-0
+              grid-cols-1
+              gap-5
+              md:grid-cols-2
             "
           >
-            Your workspace
-          </h2>
 
-          <p
-            className="
-              text-sm
-              muted
-              mt-1
-            "
-          >
-            Everything you need to build and improve
-            your resume.
-          </p>
+            {/* MY RESUMES */}
 
-        </div>
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/total-resumes")
+              }
+              className="
+                card
+                group
+                min-w-0
+                cursor-pointer
+                p-6
+                text-left
+                transition-transform
+                hover:-translate-y-1
+              "
+            >
 
+              <div className="flex items-start justify-between">
+
+                <div
+                  className="
+                    flex
+                    h-11
+                    w-11
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-teal/10
+                  "
+                >
+                  <FileText
+                    size={21}
+                    className="text-teal"
+                  />
+                </div>
+
+
+                <ArrowRight
+                  size={18}
+                  className="
+                    muted
+                    transition-transform
+                    duration-200
+                    group-hover:translate-x-1
+                  "
+                />
+
+              </div>
+
+
+              <h3
+                className="
+                  mt-5
+                  text-lg
+                  font-display
+                  font-semibold
+                "
+              >
+                My resumes
+              </h3>
+
+
+              <p
+                className="
+                  muted
+                  mt-1
+                  max-w-md
+                  text-sm
+                  leading-relaxed
+                "
+              >
+                View, manage and continue editing
+                your saved resumes.
+              </p>
+
+
+              <div
+                className="
+                  mt-5
+                  flex
+                  items-center
+                  gap-2
+                  text-xs
+                  font-medium
+                  text-teal
+                "
+              >
+                <Clock3 size={13} />
+
+                {loading
+                  ? "Loading..."
+                  : counts.resumes === 0
+                    ? "No resumes created yet"
+                    : `${counts.resumes} resume${
+                        counts.resumes === 1
+                          ? ""
+                          : "s"
+                      } created`}
+              </div>
+
+            </button>
+
+
+            {/* AI SUGGESTIONS */}
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/ai-suggestions")
+              }
+              className="
+                card
+                group
+                min-w-0
+                cursor-pointer
+                p-6
+                text-left
+                transition-transform
+                hover:-translate-y-1
+              "
+            >
+
+              <div className="flex items-start justify-between">
+
+                <div
+                  className="
+                    flex
+                    h-11
+                    w-11
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-purple-500/10
+                  "
+                >
+                  <Sparkles
+                    size={21}
+                    className="text-purple-500"
+                  />
+                </div>
+
+
+                <ArrowRight
+                  size={18}
+                  className="
+                    muted
+                    transition-transform
+                    duration-200
+                    group-hover:translate-x-1
+                  "
+                />
+
+              </div>
+
+
+              <h3
+                className="
+                  mt-5
+                  text-lg
+                  font-display
+                  font-semibold
+                "
+              >
+                AI suggestions
+              </h3>
+
+
+              <p
+                className="
+                  muted
+                  mt-1
+                  max-w-md
+                  text-sm
+                  leading-relaxed
+                "
+              >
+                Improve your resume wording,
+                achievements and impact using AI.
+              </p>
+
+
+              <div
+                className="
+                  mt-5
+                  flex
+                  items-center
+                  gap-2
+                  text-xs
+                  font-medium
+                  text-purple-500
+                "
+              >
+                <Sparkles size={13} />
+                Explore AI tools
+              </div>
+
+            </button>
+
+          </div>
+
+        </section>
 
 
         {/* ====================================================
-            WORKSPACE CARDS
+            QUICK ACTIONS
             ==================================================== */}
 
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-            gap-4
-          "
-        >
+        <section className="w-full min-w-0 pb-14 pt-9">
 
-          {/* ==================================================
-              MY RESUMES
-              ================================================== */}
+          <div className="mb-5">
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/total-resumes")
-            }
+            <h2
+              className="
+                text-xl
+                font-display
+                font-semibold
+              "
+            >
+              Quick actions
+            </h2>
+
+            <p className="muted mt-1 text-sm">
+              Jump directly into your career tools.
+            </p>
+
+          </div>
+
+
+          <div
             className="
-              card
-              p-6
-              text-left
-              group
-              cursor-pointer
-              hover:-translate-y-1
-              transition-transform
+              grid
+              w-full
+              min-w-0
+              grid-cols-1
+              gap-4
+              sm:grid-cols-2
+              lg:grid-cols-4
             "
           >
 
-            <div
+            {/* CREATE RESUME */}
+
+            <button
+              type="button"
+              onClick={() => navigate("/resume")}
               className="
-                flex
-                items-start
-                justify-between
+                card
+                min-w-0
+                cursor-pointer
+                p-5
+                text-left
+                transition
+                hover:-translate-y-1
               "
             >
 
-              <div
-                className="
-                  w-11
-                  h-11
-                  rounded-xl
-                  bg-teal/10
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-
-                <FileText
-                  size={21}
-                  className="text-teal"
-                />
-
-              </div>
-
-
-              <ArrowRight
-                size={18}
-                className="
-                  muted
-                  transition-transform
-                  duration-200
-                  group-hover:translate-x-1
-                "
+              <Plus
+                size={21}
+                className="text-indigo-600"
               />
 
-            </div>
+              <h3 className="mt-4 text-sm font-bold">
+                Create Resume
+              </h3>
+
+              <p className="muted mt-1 text-xs leading-5">
+                Start a new AI-powered resume.
+              </p>
+
+            </button>
 
 
-            <h3
+            {/* ATS CHECKER */}
+
+            <button
+              type="button"
+              onClick={() => navigate("/ats")}
               className="
-                text-lg
-                font-display
-                font-semibold
-                mt-5
-              "
-            >
-              My resumes
-            </h3>
-
-
-            <p
-              className="
-                text-sm
-                muted
-                mt-1
-                leading-relaxed
-                max-w-md
-              "
-            >
-              View, manage and continue editing
-              your saved resumes.
-            </p>
-
-
-            <div
-              className="
-                flex
-                items-center
-                gap-2
-                mt-5
-                text-xs
-                font-medium
-                text-teal
+                card
+                min-w-0
+                cursor-pointer
+                p-5
+                text-left
+                transition
+                hover:-translate-y-1
               "
             >
 
-              <Clock3 size={13} />
-
-              {loading
-                ? "Loading..."
-                : counts.resumes === 0
-                  ? "No resumes created yet"
-                  : `${counts.resumes} resume${
-                      counts.resumes === 1
-                        ? ""
-                        : "s"
-                    } created`}
-
-            </div>
-
-          </button>
-
-
-
-          {/* ==================================================
-              AI SUGGESTIONS
-              ================================================== */}
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/ai-suggestions")
-            }
-            className="
-              card
-              p-6
-              text-left
-              group
-              cursor-pointer
-              hover:-translate-y-1
-              transition-transform
-            "
-          >
-
-            <div
-              className="
-                flex
-                items-start
-                justify-between
-              "
-            >
-
-              <div
-                className="
-                  w-11
-                  h-11
-                  rounded-xl
-                  bg-purple-500/10
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-
-                <Sparkles
-                  size={21}
-                  className="text-purple-500"
-                />
-
-              </div>
-
-
-              <ArrowRight
-                size={18}
-                className="
-                  muted
-                  transition-transform
-                  duration-200
-                  group-hover:translate-x-1
-                "
+              <CheckCircle2
+                size={21}
+                className="text-emerald-600"
               />
 
-            </div>
+              <h3 className="mt-4 text-sm font-bold">
+                ATS Checker
+              </h3>
+
+              <p className="muted mt-1 text-xs leading-5">
+                Analyze your resume for ATS compatibility.
+              </p>
+
+            </button>
 
 
-            <h3
+            {/* JOB MATCH */}
+
+            <button
+              type="button"
+              onClick={() => navigate("/job-match")}
               className="
-                text-lg
-                font-display
-                font-semibold
-                mt-5
-              "
-            >
-              AI suggestions
-            </h3>
-
-
-            <p
-              className="
-                text-sm
-                muted
-                mt-1
-                leading-relaxed
-                max-w-md
-              "
-            >
-              Improve your resume wording,
-              achievements and impact using AI.
-            </p>
-
-
-            <div
-              className="
-                flex
-                items-center
-                gap-2
-                mt-5
-                text-xs
-                font-medium
-                text-purple-500
+                card
+                min-w-0
+                cursor-pointer
+                p-5
+                text-left
+                transition
+                hover:-translate-y-1
               "
             >
 
-              <Sparkles size={13} />
+              <Target
+                size={21}
+                className="text-amber-500"
+              />
 
-              Explore AI tools
+              <h3 className="mt-4 text-sm font-bold">
+                Job Match
+              </h3>
 
-            </div>
+              <p className="muted mt-1 text-xs leading-5">
+                Compare your resume with a target job.
+              </p>
 
-          </button>
+            </button>
 
-        </div>
 
+            {/* TEMPLATES */}
+
+            <button
+              type="button"
+              onClick={() => navigate("/templates")}
+              className="
+                card
+                min-w-0
+                cursor-pointer
+                p-5
+                text-left
+                transition
+                hover:-translate-y-1
+              "
+            >
+
+              <FileText
+                size={21}
+                className="text-purple-600"
+              />
+
+              <h3 className="mt-4 text-sm font-bold">
+                Templates
+              </h3>
+
+              <p className="muted mt-1 text-xs leading-5">
+                Choose a professional resume design.
+              </p>
+
+            </button>
+
+          </div>
+
+        </section>
 
 
         {/* ====================================================
@@ -997,43 +1135,40 @@ function Dashboard() {
             ==================================================== */}
 
         {error && (
-
           <div
             className="
-              mt-5
-              p-4
+              mb-10
+              flex
+              items-start
+              gap-3
               rounded-xl
               border
               border-brick/20
               bg-brick/5
-              flex
-              items-start
-              gap-3
+              p-4
             "
           >
 
             <div
               className="
-                w-7
-                h-7
-                shrink-0
-                rounded-lg
-                bg-brick/10
                 flex
+                h-7
+                w-7
+                shrink-0
                 items-center
                 justify-center
+                rounded-lg
+                bg-brick/10
               "
             >
-
               <FileText
                 size={14}
                 className="text-brick"
               />
-
             </div>
 
 
-            <div>
+            <div className="min-w-0">
 
               <p
                 className="
@@ -1045,12 +1180,11 @@ function Dashboard() {
                 Unable to load workspace
               </p>
 
-
               <p
                 className="
+                  mt-1
                   text-xs
                   text-brick/80
-                  mt-1
                 "
               >
                 {error}
@@ -1059,11 +1193,9 @@ function Dashboard() {
             </div>
 
           </div>
-
         )}
 
       </div>
-
     </div>
   );
 }
