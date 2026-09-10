@@ -272,11 +272,12 @@ const API = (() => {
        ATS UPLOAD
     ===================================================== */
 
-    uploadAts: async (file) => {
+    uploadAts: async (file, targetRole) => {
       try {
         const fd = new FormData();
 
         fd.append("file", file);
+        fd.append("role", targetRole || "");
 
         const token = localStorage.getItem("token");
 
@@ -315,6 +316,7 @@ const API = (() => {
           const fd2 = new FormData();
 
           fd2.append("file", file);
+          fd2.append("role", targetRole || "");
 
           const token =
             localStorage.getItem("token");

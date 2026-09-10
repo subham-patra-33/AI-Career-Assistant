@@ -10,6 +10,7 @@ export default function ATS() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [targetRole, setTargetRole] = useState("");
 
   // --------------------------------------------------
   // FILE HELPERS
@@ -223,18 +224,34 @@ export default function ATS() {
       );
       return;
     }
+    if (!targetRole.trim()) {
+  setError(
+    "Please enter the target job role, for example Frontend Developer."
+  );
+  return;
+}
 
     setLoading(true);
     setError("");
 
     try {
-      const response = await API.uploadAts(selectedFile);
+const response = await API.uploadAts(
+  selectedFile,
+  targetRole.trim()
+);
 
-      if (!response) {
-        throw new Error("No response received from ATS analyzer.");
-      }
+if (!response) {
+  throw new Error("No response received from ATS analyzer.");
+}
 
-      const normalized = normalizeResult(response);
+if (response.error) {
+  throw new Error(
+    response.message ||
+      "The ATS analyzer could not process this resume."
+  );
+}
+
+const normalized = normalizeResult(response);
 
       setResult(normalized);
     } catch (err) {
@@ -509,25 +526,48 @@ export default function ATS() {
 
           {/* UPLOAD CARD */}
 
-          <div className="card p-[18px]">
+    <div className="card p-[18px]">
 
-            <div className="flex items-center justify-between mb-[14px]">
+  <div className="flex items-center justify-between mb-[14px]">
+    <div>
+      <h2 className="font-semibold text-lg">
+        Upload your resume
+      </h2>
 
-              <div>
-                <h2 className="font-semibold text-lg">
-                  Upload your resume
-                </h2>
+      <p className="text-xs muted mt-1">
+        PDF, DOC, or DOCX · Maximum 10 MB
+      </p>
+    </div>
 
-                <p className="text-xs muted mt-1">
-                  PDF, DOC, or DOCX · Maximum 10 MB
-                </p>
-              </div>
+    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
+      📄
+    </div>
+  </div>
 
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
-                📄
-              </div>
+  {/* TARGET JOB ROLE */}
 
-            </div>
+  <div className="mb-[16px]">
+    <label className="block text-sm font-semibold mb-2">
+      Target Job Role
+    </label>
+
+    <input
+      type="text"
+      value={targetRole}
+      onChange={(e) => {
+        setTargetRole(e.target.value);
+        setError("");
+      }}
+      placeholder="e.g. Frontend Developer"
+      className="input w-full"
+    />
+
+    <p className="text-xs muted mt-2">
+      Enter the role you are applying for. Your ATS score will be
+      calculated based on the skills and requirements of this role.
+    </p>
+  </div>
+
 
             {/* DROP ZONE */}
 
