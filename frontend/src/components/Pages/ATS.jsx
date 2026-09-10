@@ -1,19 +1,24 @@
 import React, { useRef, useState } from "react";
 import BackButton from "../BackButton";
-import API from "../../lib/api";
+import { getToken } from "../../lib/auth";
 
 export default function ATS() {
   const fileInputRef = useRef(null);
 
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
-  // --------------------------------------------------
-  // FILE HELPERS
-  // --------------------------------------------------
+  const API_URL =
+    import.meta.env.VITE_API_URL ||
+    "http://localhost:4000";
+
+  // ============================================================
+  // FILE SIZE
+  // ============================================================
 
   const formatFileSize = (bytes) => {
     if (!bytes) return "0 KB";
@@ -22,146 +27,186 @@ export default function ATS() {
       return `${Math.round(bytes / 1024)} KB`;
     }
 
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(
+      bytes /
+      (1024 * 1024)
+    ).toFixed(1)} MB`;
   };
+
+  // ============================================================
+  // FILE VALIDATION
+  // ============================================================
 
   const isValidFile = (selectedFile) => {
     if (!selectedFile) return false;
 
-    const allowedTypes = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/msword",
-    ];
+    const extension =
+      selectedFile.name
+        .split(".")
+        .pop()
+        ?.toLowerCase();
 
-    const extension = selectedFile.name
-      .split(".")
-      .pop()
-      ?.toLowerCase();
-
-    return (
-      allowedTypes.includes(selectedFile.type) ||
-      ["pdf", "doc", "docx"].includes(extension)
-    );
+    return [
+      "pdf",
+      "doc",
+      "docx",
+    ].includes(extension);
   };
 
-  // --------------------------------------------------
-  // NORMALIZE API RESPONSE
-  // --------------------------------------------------
+  // ============================================================
+  // ARRAY NORMALIZER
+  // ============================================================
+
+  const normalizeArray = (value) => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      return value
+        .split("\n")
+        .map((item) =>
+          item
+            .replace(/^[-•*]\s*/, "")
+            .replace(/^\d+\.\s*/, "")
+            .trim()
+        )
+        .filter(Boolean);
+    }
+
+    return [];
+  };
+
+  // ============================================================
+  // NORMALIZE ATS RESPONSE
+  // ============================================================
 
   const normalizeResult = (data) => {
-    const source = data?.result || data?.data || data || {};
+    const source =
+      data?.result ||
+      data?.analysis ||
+      data?.data ||
+      data ||
+      {};
 
     const rawScore =
       source.score ??
       source.atsScore ??
-      source.matchScore ??
       source.ats_score ??
       source.overallScore ??
+      source.overall_score ??
+      source.compatibilityScore ??
       0;
 
     const score = Math.max(
       0,
-      Math.min(100, Number(rawScore) || 0)
+      Math.min(
+        100,
+        Number(rawScore) || 0
+      )
     );
 
-    const keywords =
+    const keywords = normalizeArray(
       source.keywords ||
-      source.detectedKeywords ||
-      source.matchedKeywords ||
-      source.keywordMatches ||
-      [];
+        source.detectedKeywords ||
+        source.detected_keywords ||
+        source.matchedKeywords ||
+        source.matched_keywords ||
+        []
+    );
 
     const missingKeywords =
-      source.missingKeywords ||
-      source.missing_keywords ||
-      source.keywordGaps ||
-      source.missing ||
-      [];
+      normalizeArray(
+        source.missingKeywords ||
+          source.missing_keywords ||
+          source.keywordGaps ||
+          source.keyword_gaps ||
+          []
+      );
 
     const suggestions =
-      source.suggestions ||
-      source.recommendations ||
-      source.improvements ||
-      source.feedback ||
-      [];
+      normalizeArray(
+        source.suggestions ||
+          source.recommendations ||
+          source.improvements ||
+          source.feedback ||
+          []
+      );
+
+    const breakdown =
+      source.breakdown ||
+      source.scoreBreakdown ||
+      source.score_breakdown ||
+      {};
+
+    const formatting =
+      source.formatting ??
+      source.formattingScore ??
+      source.format_score ??
+      breakdown.formatting ??
+      0;
+
+    const keywordScore =
+      source.keywordScore ??
+      source.keyword_score ??
+      source.keywordsScore ??
+      breakdown.keywords ??
+      0;
+
+    const contentScore =
+      source.contentScore ??
+      source.content_score ??
+      breakdown.content ??
+      0;
+
+    const contactScore =
+      source.contactScore ??
+      source.contact_score ??
+      breakdown.contactInformation ??
+      breakdown.contact ??
+      0;
 
     const sections =
       source.sections ||
       source.sectionAnalysis ||
-      source.sectionScores ||
+      source.section_analysis ||
       {};
-
-    const formatting =
-      source.formatting ||
-      source.formattingScore ||
-      source.formatScore ||
-      0;
-
-    const keywordScore =
-      source.keywordScore ||
-      source.keyword_score ||
-      source.keywordsScore ||
-      0;
-
-    const contentScore =
-      source.contentScore ||
-      source.content_score ||
-      source.experienceScore ||
-      0;
-
-    const contactScore =
-      source.contactScore ||
-      source.contact_score ||
-      0;
 
     return {
       score,
-      keywords: Array.isArray(keywords)
-        ? keywords
-        : typeof keywords === "string"
-        ? keywords
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean)
-        : [],
 
-      missingKeywords: Array.isArray(missingKeywords)
-        ? missingKeywords
-        : typeof missingKeywords === "string"
-        ? missingKeywords
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean)
-        : [],
+      keywords,
 
-      suggestions: Array.isArray(suggestions)
-        ? suggestions
-        : typeof suggestions === "string"
-        ? suggestions
-            .split("\n")
-            .map((x) =>
-              x
-                .replace(/^[-•*]\s*/, "")
-                .replace(/^\d+\.\s*/, "")
-                .trim()
-            )
-            .filter(Boolean)
-        : [],
+      missingKeywords,
+
+      suggestions,
 
       sections,
-      formatting: Number(formatting) || 0,
-      keywordScore: Number(keywordScore) || 0,
-      contentScore: Number(contentScore) || 0,
-      contactScore: Number(contactScore) || 0,
+
+      formatting:
+        Number(formatting) || 0,
+
+      keywordScore:
+        Number(keywordScore) || 0,
+
+      contentScore:
+        Number(contentScore) || 0,
+
+      contactScore:
+        Number(contactScore) || 0,
+
+      summary:
+        source.summary ||
+        source.analysisSummary ||
+        "",
 
       raw: source,
     };
   };
 
-  // --------------------------------------------------
+  // ============================================================
   // SCORE STATUS
-  // --------------------------------------------------
+  // ============================================================
 
   const getScoreStatus = (score) => {
     if (score >= 85) {
@@ -207,13 +252,17 @@ export default function ATS() {
     };
   };
 
-  // --------------------------------------------------
+  // ============================================================
   // ANALYZE RESUME
-  // --------------------------------------------------
+  // ============================================================
 
-  const analyzeResume = async (selectedFile = file) => {
+  const analyzeResume = async (
+    selectedFile = file
+  ) => {
     if (!selectedFile) {
-      setError("Please select a PDF or DOCX resume first.");
+      setError(
+        "Please select a resume first."
+      );
       return;
     }
 
@@ -224,21 +273,103 @@ export default function ATS() {
       return;
     }
 
+    if (
+      selectedFile.size >
+      10 * 1024 * 1024
+    ) {
+      setError(
+        "File size must be less than 10 MB."
+      );
+      return;
+    }
+
     setLoading(true);
     setError("");
+    setResult(null);
 
     try {
-      const response = await API.uploadAts(selectedFile);
+      const token = getToken();
 
-      if (!response) {
-        throw new Error("No response received from ATS analyzer.");
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        selectedFile
+      );
+
+      const response =
+        await fetch(
+          `${API_URL}/api/ai/ats`,
+          {
+            method: "POST",
+
+            headers: {
+              ...(token
+                ? {
+                    Authorization: `Bearer ${token}`,
+                  }
+                : {}),
+            },
+
+            body: formData,
+          }
+        );
+
+      let data = {};
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        throw new Error(
+          "The server returned an invalid response."
+        );
       }
 
-      const normalized = normalizeResult(response);
+      // IMPORTANT:
+      // Do NOT convert backend errors into 0 score.
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            data?.message ||
+            `ATS analysis failed (${response.status}).`
+        );
+      }
+
+      if (
+        data?.success === false
+      ) {
+        throw new Error(
+          data?.error ||
+            data?.message ||
+            "ATS analysis failed."
+        );
+      }
+
+      const normalized =
+        normalizeResult(data);
+
+      if (
+        !normalized ||
+        normalized.score === null ||
+        normalized.score === undefined
+      ) {
+        throw new Error(
+          "The ATS analyzer returned an invalid score."
+        );
+      }
 
       setResult(normalized);
+
     } catch (err) {
-      console.error("ATS analysis error:", err);
+      console.error(
+        "ATS analysis error:",
+        err
+      );
+
+      setResult(null);
 
       setError(
         err?.message ||
@@ -249,22 +380,33 @@ export default function ATS() {
     }
   };
 
-  // --------------------------------------------------
-  // FILE SELECTION
-  // --------------------------------------------------
+  // ============================================================
+  // FILE SELECT
+  // ============================================================
 
-  const handleFile = (selectedFile) => {
-    if (!selectedFile) return;
+  const handleFile = (
+    selectedFile
+  ) => {
+    if (!selectedFile) {
+      return;
+    }
 
-    if (!isValidFile(selectedFile)) {
+    if (
+      !isValidFile(selectedFile)
+    ) {
       setError(
         "Only PDF, DOC, and DOCX files are supported."
       );
       return;
     }
 
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError("File size must be less than 10 MB.");
+    if (
+      selectedFile.size >
+      10 * 1024 * 1024
+    ) {
+      setError(
+        "File size must be less than 10 MB."
+      );
       return;
     }
 
@@ -273,75 +415,102 @@ export default function ATS() {
     setError("");
   };
 
-  const handleInputChange = (event) => {
-    const selectedFile = event.target.files?.[0];
+  const handleInputChange = (
+    event
+  ) => {
+    const selectedFile =
+      event.target.files?.[0];
 
     if (selectedFile) {
       handleFile(selectedFile);
     }
   };
 
-  // --------------------------------------------------
-  // DRAG AND DROP
-  // --------------------------------------------------
+  // ============================================================
+  // DRAG & DROP
+  // ============================================================
 
-  const handleDragOver = (event) => {
+  const handleDragOver = (
+    event
+  ) => {
     event.preventDefault();
     event.stopPropagation();
+
     setDragActive(true);
   };
 
-  const handleDragLeave = (event) => {
+  const handleDragLeave = (
+    event
+  ) => {
     event.preventDefault();
     event.stopPropagation();
+
     setDragActive(false);
   };
 
-  const handleDrop = (event) => {
+  const handleDrop = (
+    event
+  ) => {
     event.preventDefault();
     event.stopPropagation();
 
     setDragActive(false);
 
-    const droppedFile = event.dataTransfer.files?.[0];
+    const droppedFile =
+      event.dataTransfer.files?.[0];
 
     if (droppedFile) {
-      handleFile(droppedFile);
+      handleFile(
+        droppedFile
+      );
     }
   };
 
-  // --------------------------------------------------
+  // ============================================================
   // CLEAR FILE
-  // --------------------------------------------------
+  // ============================================================
 
   const clearFile = () => {
     setFile(null);
     setResult(null);
     setError("");
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    if (
+      fileInputRef.current
+    ) {
+      fileInputRef.current.value =
+        "";
     }
   };
 
-  // --------------------------------------------------
+  // ============================================================
   // SCORE CIRCLE
-  // --------------------------------------------------
+  // ============================================================
 
-  const ScoreCircle = ({ score }) => {
+  const ScoreCircle = ({
+    score,
+  }) => {
     const radius = 58;
-    const circumference = 2 * Math.PI * radius;
+
+    const circumference =
+      2 *
+      Math.PI *
+      radius;
 
     const offset =
       circumference -
-      (circumference * score) / 100;
+      (circumference *
+        score) /
+        100;
 
     return (
       <div className="relative w-[150px] h-[150px] shrink-0">
+
         <svg
           viewBox="0 0 150 150"
           className="w-full h-full -rotate-90"
         >
+
           <circle
             cx="75"
             cy="75"
@@ -361,100 +530,150 @@ export default function ATS() {
             strokeWidth="10"
             strokeLinecap="round"
             className="text-primary transition-all duration-1000"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
+            strokeDasharray={
+              circumference
+            }
+            strokeDashoffset={
+              offset
+            }
           />
+
         </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center">
+
           <span className="text-3xl font-bold">
-            {score}
+            {Math.round(score)}
           </span>
 
           <span className="text-xs muted">
             / 100
           </span>
+
         </div>
+
       </div>
     );
   };
 
-  // --------------------------------------------------
+  // ============================================================
   // PROGRESS BAR
-  // --------------------------------------------------
+  // ============================================================
 
-  const ProgressBar = ({ label, value }) => {
-    const safeValue = Math.max(
-      0,
-      Math.min(100, Number(value) || 0)
-    );
+  const ProgressBar = ({
+    label,
+    value,
+  }) => {
+    const safeValue =
+      Math.max(
+        0,
+        Math.min(
+          100,
+          Number(value) || 0
+        )
+      );
 
     return (
       <div className="mb-4">
+
         <div className="flex items-center justify-between mb-1.5">
+
           <span className="text-sm font-medium">
             {label}
           </span>
 
           <span className="text-xs font-semibold muted">
-            {safeValue}%
+            {Math.round(
+              safeValue
+            )}
+            %
           </span>
+
         </div>
 
         <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+
           <div
             className="h-full rounded-full bg-primary transition-all duration-700"
-            style={{ width: `${safeValue}%` }}
+            style={{
+              width: `${safeValue}%`,
+            }}
           />
+
         </div>
+
       </div>
     );
   };
 
-  // --------------------------------------------------
+  // ============================================================
   // SECTION STATUS
-  // --------------------------------------------------
+  // ============================================================
 
-  const getSectionStatus = (name) => {
+  const getSectionStatus = (
+    name
+  ) => {
     const sectionData =
-      result?.sections?.[name] ||
+      result?.sections?.[
+        name
+      ] ||
       result?.sections?.[
         name.toLowerCase()
       ];
 
-    if (typeof sectionData === "number") {
-      return sectionData >= 70;
+    if (
+      typeof sectionData ===
+      "number"
+    ) {
+      return (
+        sectionData >= 70
+      );
     }
 
-    if (typeof sectionData === "boolean") {
+    if (
+      typeof sectionData ===
+      "boolean"
+    ) {
       return sectionData;
     }
 
-    if (sectionData?.score !== undefined) {
-      return Number(sectionData.score) >= 70;
+    if (
+      sectionData?.score !==
+      undefined
+    ) {
+      return (
+        Number(
+          sectionData.score
+        ) >= 70
+      );
     }
 
-    if (sectionData?.present !== undefined) {
-      return Boolean(sectionData.present);
+    if (
+      sectionData?.present !==
+      undefined
+    ) {
+      return Boolean(
+        sectionData.present
+      );
     }
 
     return null;
   };
 
-  // --------------------------------------------------
-  // MAIN RENDER
-  // --------------------------------------------------
+  // ============================================================
+  // UI
+  // ============================================================
 
   return (
-    <div className="w-full min-h-full p-[22px] overflow-hidden">
+    <div className="w-full min-h-full p-[22px]">
 
       <div className="w-full min-h-full flex flex-col overflow-y-auto overflow-x-hidden pr-[2px] pb-[24px]">
 
-        {/* =====================================================
+        {/* ======================================================
             HEADER
-        ===================================================== */}
+        ====================================================== */}
 
-        <div className="shrink-0 mb-[20px]">
+        <div className="mb-[20px]">
 
           <div className="flex items-start gap-3">
 
@@ -482,18 +701,23 @@ export default function ATS() {
 
         </div>
 
-        {/* =====================================================
+        {/* ======================================================
             ERROR
-        ===================================================== */}
+        ====================================================== */}
 
         {error && (
-          <div className="shrink-0 mb-[16px] rounded-xl border border-brick/30 bg-brick/10 px-4 py-3 text-sm text-brick flex items-center justify-between gap-4">
+          <div className="mb-[16px] rounded-xl border border-brick/30 bg-brick/10 px-4 py-3 text-sm text-brick flex items-center justify-between gap-4">
 
-            <span>{error}</span>
+            <span>
+              {error}
+            </span>
 
             <button
-              onClick={() => setError("")}
-              className="text-lg font-bold"
+              type="button"
+              onClick={() =>
+                setError("")
+              }
+              className="font-bold text-lg"
             >
               ×
             </button>
@@ -501,19 +725,22 @@ export default function ATS() {
           </div>
         )}
 
-        {/* =====================================================
-            UPLOAD + QUICK INFO
-        ===================================================== */}
+        {/* ======================================================
+            UPLOAD + INFO
+        ====================================================== */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr] gap-[18px] shrink-0">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr] gap-[18px]">
 
-          {/* UPLOAD CARD */}
+          {/* ==================================================
+              UPLOAD
+          ================================================== */}
 
           <div className="card p-[18px]">
 
             <div className="flex items-center justify-between mb-[14px]">
 
               <div>
+
                 <h2 className="font-semibold text-lg">
                   Upload your resume
                 </h2>
@@ -521,48 +748,58 @@ export default function ATS() {
                 <p className="text-xs muted mt-1">
                   PDF, DOC, or DOCX · Maximum 10 MB
                 </p>
+
               </div>
 
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 📄
               </div>
 
             </div>
 
-            {/* DROP ZONE */}
-
             {!file ? (
               <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                onDragOver={
+                  handleDragOver
+                }
+                onDragLeave={
+                  handleDragLeave
+                }
+                onDrop={
+                  handleDrop
+                }
                 onClick={() =>
                   fileInputRef.current?.click()
                 }
                 className={`min-h-[210px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                   dragActive
-                    ? "border-primary bg-primary/10 scale-[1.01]"
+                    ? "border-primary bg-primary/10"
                     : "border-border bg-muted/30 hover:border-primary/50 hover:bg-primary/5"
                 }`}
               >
 
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl mb-3">
-                  ☁️
+                  📄
                 </div>
 
                 <p className="font-semibold text-sm">
-                  Drag & drop your resume here
+                  Upload your resume
                 </p>
 
-                <p className="text-xs muted mt-1 mb-4">
-                  or choose a file from your computer
+                <p className="text-xs muted mt-1">
+                  Drag & drop or browse your computer
+                </p>
+
+                <p className="text-xs muted mt-2">
+                  PDF • DOC • DOCX
                 </p>
 
                 <button
                   type="button"
-                  className="btn btn-primary text-sm"
+                  className="btn btn-primary text-sm mt-4"
                   onClick={(event) => {
                     event.stopPropagation();
+
                     fileInputRef.current?.click();
                   }}
                 >
@@ -573,7 +810,9 @@ export default function ATS() {
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.doc,.docx"
-                  onChange={handleInputChange}
+                  onChange={
+                    handleInputChange
+                  }
                   className="hidden"
                 />
 
@@ -594,15 +833,19 @@ export default function ATS() {
                     </p>
 
                     <p className="text-xs muted mt-1">
-                      {formatFileSize(file.size)}
+                      {formatFileSize(
+                        file.size
+                      )}
                     </p>
 
                   </div>
 
                   <button
-                    onClick={clearFile}
-                    className="text-muted-foreground hover:text-brick text-xl"
-                    title="Remove file"
+                    type="button"
+                    onClick={
+                      clearFile
+                    }
+                    className="text-lg font-bold muted hover:text-brick"
                   >
                     ×
                   </button>
@@ -612,8 +855,15 @@ export default function ATS() {
                 <div className="flex gap-2 mt-[14px]">
 
                   <button
-                    onClick={() => analyzeResume(file)}
-                    disabled={loading}
+                    type="button"
+                    onClick={() =>
+                      analyzeResume(
+                        file
+                      )
+                    }
+                    disabled={
+                      loading
+                    }
                     className="btn btn-primary flex-1 text-sm"
                   >
                     {loading
@@ -624,8 +874,12 @@ export default function ATS() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() =>
                       fileInputRef.current?.click()
+                    }
+                    disabled={
+                      loading
                     }
                     className="btn btn-secondary text-sm"
                   >
@@ -638,7 +892,9 @@ export default function ATS() {
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.doc,.docx"
-                  onChange={handleInputChange}
+                  onChange={
+                    handleInputChange
+                  }
                   className="hidden"
                 />
 
@@ -647,7 +903,9 @@ export default function ATS() {
 
           </div>
 
-          {/* HOW IT WORKS */}
+          {/* ==================================================
+              HOW IT WORKS
+          ================================================== */}
 
           <div className="card p-[18px]">
 
@@ -657,54 +915,56 @@ export default function ATS() {
 
             <div className="space-y-[13px]">
 
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm">
-                  1
-                </div>
+              {[
+                [
+                  "1",
+                  "Upload your resume",
+                  "We extract the content from your file.",
+                ],
+                [
+                  "2",
+                  "Analyze ATS compatibility",
+                  "AI checks keywords, structure and content.",
+                ],
+                [
+                  "3",
+                  "Improve your resume",
+                  "Get recommendations before applying.",
+                ],
+              ].map(
+                (item) => (
+                  <div
+                    key={
+                      item[0]
+                    }
+                    className="flex gap-3"
+                  >
 
-                <div>
-                  <p className="text-sm font-semibold">
-                    Upload your resume
-                  </p>
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm">
+                      {
+                        item[0]
+                      }
+                    </div>
 
-                  <p className="text-xs muted mt-1">
-                    We analyze the content and structure.
-                  </p>
-                </div>
-              </div>
+                    <div>
 
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm">
-                  2
-                </div>
+                      <p className="text-sm font-semibold">
+                        {
+                          item[1]
+                        }
+                      </p>
 
-                <div>
-                  <p className="text-sm font-semibold">
-                    Check ATS compatibility
-                  </p>
+                      <p className="text-xs muted mt-1">
+                        {
+                          item[2]
+                        }
+                      </p>
 
-                  <p className="text-xs muted mt-1">
-                    Keywords, formatting and important sections
-                    are evaluated.
-                  </p>
-                </div>
-              </div>
+                    </div>
 
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm">
-                  3
-                </div>
-
-                <div>
-                  <p className="text-sm font-semibold">
-                    Improve your resume
-                  </p>
-
-                  <p className="text-xs muted mt-1">
-                    Get specific suggestions before applying.
-                  </p>
-                </div>
-              </div>
+                  </div>
+                )
+              )}
 
             </div>
 
@@ -712,461 +972,518 @@ export default function ATS() {
 
         </div>
 
-        {/* =====================================================
-            EMPTY STATE
-        ===================================================== */}
-
-        {!result && !loading && (
-          <div className="card mt-[18px] p-[24px]">
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-[14px]">
-
-              <div className="rounded-xl bg-primary/5 border border-primary/10 p-[16px]">
-                <div className="text-xl mb-2">🔑</div>
-
-                <h3 className="font-semibold text-sm">
-                  Keyword Detection
-                </h3>
-
-                <p className="text-xs muted mt-1 leading-relaxed">
-                  Find important keywords that recruiters and
-                  ATS systems look for.
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-teal/5 border border-teal/10 p-[16px]">
-                <div className="text-xl mb-2">📋</div>
-
-                <h3 className="font-semibold text-sm">
-                  Resume Structure
-                </h3>
-
-                <p className="text-xs muted mt-1 leading-relaxed">
-                  Check whether your resume contains the
-                  sections ATS systems expect.
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-plum/5 border border-plum/10 p-[16px]">
-                <div className="text-xl mb-2">💡</div>
-
-                <h3 className="font-semibold text-sm">
-                  Smart Recommendations
-                </h3>
-
-                <p className="text-xs muted mt-1 leading-relaxed">
-                  Receive actionable recommendations to make
-                  your resume stronger.
-                </p>
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
-        {/* =====================================================
+        {/* ======================================================
             LOADING
-        ===================================================== */}
+        ====================================================== */}
 
         {loading && (
           <div className="card mt-[18px] p-[35px] flex flex-col items-center justify-center">
 
-            <div className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin mb-4"></div>
+            <div className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin mb-4" />
 
             <h3 className="font-semibold text-lg">
               Analyzing your resume...
             </h3>
 
             <p className="muted text-sm mt-1">
-              Checking keywords, formatting and ATS compatibility.
+              AI is checking keywords, structure and ATS compatibility.
             </p>
 
           </div>
         )}
 
-        {/* =====================================================
+        {/* ======================================================
             RESULTS
-        ===================================================== */}
+        ====================================================== */}
 
-        {result && !loading && (
-          <div className="mt-[18px]">
+        {result &&
+          !loading && (
+            <div className="mt-[18px]">
 
-            {/* SCORE OVERVIEW */}
+              {/* ==================================================
+                  SCORE
+              ================================================== */}
 
-            <div className="card p-[20px] mb-[16px]">
+              <div className="card p-[20px] mb-[16px]">
 
-              <div className="flex flex-col lg:flex-row gap-[24px] items-center">
+                <div className="flex flex-col lg:flex-row gap-[24px] items-center">
 
-                <ScoreCircle score={result.score} />
+                  <ScoreCircle
+                    score={
+                      result.score
+                    }
+                  />
 
-                <div className="flex-1 w-full">
+                  <div className="flex-1">
 
-                  {(() => {
-                    const status =
-                      getScoreStatus(result.score);
+                    {(() => {
+                      const status =
+                        getScoreStatus(
+                          result.score
+                        );
 
-                    return (
-                      <>
-                        <div
-                          className={`inline-flex items-center px-3 py-1.5 rounded-full border text-xs font-semibold ${status.bg} ${status.border} ${status.className}`}
-                        >
-                          {result.score >= 70
-                            ? "✓"
-                            : "!"}{" "}
-                          {status.title}
-                        </div>
+                      return (
+                        <>
+                          <div
+                            className={`inline-flex items-center px-3 py-1.5 rounded-full border text-xs font-semibold ${status.bg} ${status.border} ${status.className}`}
+                          >
+                            {result.score >=
+                            70
+                              ? "✓"
+                              : "!"}{" "}
+                            {
+                              status.title
+                            }
+                          </div>
 
-                        <h2 className="text-xl font-display font-bold mt-3">
-                          Your resume scored{" "}
-                          {result.score}/100
-                        </h2>
+                          <h2 className="text-xl font-display font-bold mt-3">
+                            Your resume scored{" "}
+                            {
+                              Math.round(
+                                result.score
+                              )
+                            }
+                            /100
+                          </h2>
 
-                        <p className="muted text-sm mt-1 max-w-2xl">
-                          {status.description}
-                        </p>
-                      </>
-                    );
-                  })()}
+                          <p className="muted text-sm mt-1 max-w-2xl">
+                            {
+                              status.description
+                            }
+                          </p>
 
-                </div>
+                          {result.summary && (
+                            <p className="text-sm mt-3 leading-relaxed">
+                              {
+                                result.summary
+                              }
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
 
-                <button
-                  onClick={() => analyzeResume(file)}
-                  className="btn btn-primary shrink-0"
-                >
-                  🔄 Re-analyze
-                </button>
-
-              </div>
-
-            </div>
-
-            {/* SCORE BREAKDOWN */}
-
-            <div className="card p-[18px] mb-[16px]">
-
-              <div className="flex items-center justify-between mb-[16px]">
-
-                <div>
-                  <h2 className="font-semibold text-lg">
-                    Score breakdown
-                  </h2>
-
-                  <p className="text-xs muted mt-1">
-                    See where your resume performs well and
-                    where it needs improvement.
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[30px]">
-
-                <ProgressBar
-                  label="Keywords"
-                  value={
-                    result.keywordScore ||
-                    result.score
-                  }
-                />
-
-                <ProgressBar
-                  label="Formatting"
-                  value={
-                    result.formatting ||
-                    result.score
-                  }
-                />
-
-                <ProgressBar
-                  label="Content"
-                  value={
-                    result.contentScore ||
-                    result.score
-                  }
-                />
-
-                <ProgressBar
-                  label="Contact Information"
-                  value={
-                    result.contactScore ||
-                    result.score
-                  }
-                />
-
-              </div>
-
-            </div>
-
-            {/* KEYWORDS */}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px] mb-[16px]">
-
-              {/* DETECTED */}
-
-              <div className="card p-[18px]">
-
-                <div className="flex items-center justify-between mb-[14px]">
-
-                  <div>
-                    <h2 className="font-semibold">
-                      🔑 Detected Keywords
-                    </h2>
-
-                    <p className="text-xs muted mt-1">
-                      Keywords already found in your resume.
-                    </p>
                   </div>
 
-                  <span className="text-xs font-semibold text-teal">
-                    {result.keywords.length} found
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      analyzeResume(
+                        file
+                      )
+                    }
+                    className="btn btn-primary shrink-0"
+                  >
+                    🔄 Re-analyze
+                  </button>
 
                 </div>
 
-                {result.keywords.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
+              </div>
 
-                    {result.keywords.map(
-                      (keyword, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1.5 rounded-full bg-teal/10 border border-teal/20 text-teal text-xs font-medium"
+              {/* ==================================================
+                  BREAKDOWN
+              ================================================== */}
+
+              <div className="card p-[18px] mb-[16px]">
+
+                <h2 className="font-semibold text-lg">
+                  Score breakdown
+                </h2>
+
+                <p className="text-xs muted mt-1 mb-[16px]">
+                  See where your resume performs well and where
+                  it needs improvement.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[30px]">
+
+                  <ProgressBar
+                    label="Keywords"
+                    value={
+                      result.keywordScore
+                    }
+                  />
+
+                  <ProgressBar
+                    label="Formatting"
+                    value={
+                      result.formatting
+                    }
+                  />
+
+                  <ProgressBar
+                    label="Content"
+                    value={
+                      result.contentScore
+                    }
+                  />
+
+                  <ProgressBar
+                    label="Contact Information"
+                    value={
+                      result.contactScore
+                    }
+                  />
+
+                </div>
+
+              </div>
+
+              {/* ==================================================
+                  KEYWORDS
+              ================================================== */}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px] mb-[16px]">
+
+                <div className="card p-[18px]">
+
+                  <div className="flex justify-between mb-[14px]">
+
+                    <div>
+
+                      <h2 className="font-semibold">
+                        🔑 Detected Keywords
+                      </h2>
+
+                      <p className="text-xs muted mt-1">
+                        Keywords found in your resume.
+                      </p>
+
+                    </div>
+
+                    <span className="text-xs font-semibold text-teal">
+                      {
+                        result.keywords
+                          .length
+                      }{" "}
+                      found
+                    </span>
+
+                  </div>
+
+                  {result.keywords
+                    .length >
+                  0 ? (
+                    <div className="flex flex-wrap gap-2">
+
+                      {result.keywords.map(
+                        (
+                          keyword,
+                          index
+                        ) => (
+                          <span
+                            key={
+                              index
+                            }
+                            className="px-3 py-1.5 rounded-full bg-teal/10 border border-teal/20 text-teal text-xs font-medium"
+                          >
+                            ✓{" "}
+                            {
+                              keyword
+                            }
+                          </span>
+                        )
+                      )}
+
+                    </div>
+                  ) : (
+                    <p className="muted text-sm">
+                      No keyword information was returned.
+                    </p>
+                  )}
+
+                </div>
+
+                <div className="card p-[18px]">
+
+                  <div className="flex justify-between mb-[14px]">
+
+                    <div>
+
+                      <h2 className="font-semibold">
+                        ⚠️ Missing Keywords
+                      </h2>
+
+                      <p className="text-xs muted mt-1">
+                        Keywords you may want to add where relevant.
+                      </p>
+
+                    </div>
+
+                    <span className="text-xs font-semibold text-brick">
+                      {
+                        result
+                          .missingKeywords
+                          .length
+                      }{" "}
+                      missing
+                    </span>
+
+                  </div>
+
+                  {result
+                    .missingKeywords
+                    .length >
+                  0 ? (
+                    <div className="flex flex-wrap gap-2">
+
+                      {result.missingKeywords.map(
+                        (
+                          keyword,
+                          index
+                        ) => (
+                          <span
+                            key={
+                              index
+                            }
+                            className="px-3 py-1.5 rounded-full bg-brick/10 border border-brick/20 text-brick text-xs font-medium"
+                          >
+                            +{" "}
+                            {
+                              keyword
+                            }
+                          </span>
+                        )
+                      )}
+
+                    </div>
+                  ) : (
+                    <div className="rounded-lg bg-teal/10 border border-teal/20 p-3">
+
+                      <p className="text-sm text-teal font-medium">
+                        ✓ No major missing keywords detected.
+                      </p>
+
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* ==================================================
+                  SECTIONS
+              ================================================== */}
+
+              <div className="card p-[18px] mb-[16px]">
+
+                <h2 className="font-semibold text-lg">
+                  📋 Resume section checklist
+                </h2>
+
+                <p className="text-xs muted mt-1 mb-[16px]">
+                  Important sections ATS systems expect.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[10px]">
+
+                  {[
+                    [
+                      "contact",
+                      "Contact Information",
+                      "👤",
+                    ],
+                    [
+                      "summary",
+                      "Professional Summary",
+                      "📝",
+                    ],
+                    [
+                      "skills",
+                      "Skills",
+                      "🛠️",
+                    ],
+                    [
+                      "experience",
+                      "Work Experience",
+                      "💼",
+                    ],
+                    [
+                      "education",
+                      "Education",
+                      "🎓",
+                    ],
+                    [
+                      "projects",
+                      "Projects",
+                      "🚀",
+                    ],
+                  ].map(
+                    ([
+                      key,
+                      label,
+                      icon,
+                    ]) => {
+                      const status =
+                        getSectionStatus(
+                          key
+                        );
+
+                      return (
+                        <div
+                          key={
+                            key
+                          }
+                          className={`rounded-xl border p-[13px] flex items-center gap-3 ${
+                            status ===
+                            false
+                              ? "border-brick/20 bg-brick/5"
+                              : status ===
+                                true
+                              ? "border-teal/20 bg-teal/5"
+                              : "border-border bg-muted/20"
+                          }`}
                         >
-                          ✓ {keyword}
-                        </span>
+
+                          <div className="text-lg">
+                            {
+                              icon
+                            }
+                          </div>
+
+                          <div className="flex-1">
+
+                            <p className="text-sm font-medium">
+                              {
+                                label
+                              }
+                            </p>
+
+                            <p className="text-xs muted mt-0.5">
+                              {status ===
+                              true
+                                ? "Detected"
+                                : status ===
+                                  false
+                                ? "Needs attention"
+                                : "Analyzed"}
+                            </p>
+
+                          </div>
+
+                          <div>
+                            {status ===
+                            true
+                              ? "✅"
+                              : status ===
+                                false
+                              ? "⚠️"
+                              : "✓"}
+                          </div>
+
+                        </div>
+                      );
+                    }
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* ==================================================
+                  SUGGESTIONS
+              ================================================== */}
+
+              <div className="card p-[18px] mb-[16px]">
+
+                <h2 className="font-semibold text-lg">
+                  💡 How to improve your resume
+                </h2>
+
+                <p className="text-xs muted mt-1 mb-[16px]">
+                  Follow these recommendations to increase your
+                  ATS compatibility.
+                </p>
+
+                {result.suggestions
+                  .length > 0 ? (
+                  <div className="space-y-[10px]">
+
+                    {result.suggestions.map(
+                      (
+                        suggestion,
+                        index
+                      ) => (
+                        <div
+                          key={
+                            index
+                          }
+                          className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 p-[13px]"
+                        >
+
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold shrink-0">
+                            {
+                              index +
+                              1
+                            }
+                          </div>
+
+                          <p className="text-sm leading-relaxed">
+                            {typeof suggestion ===
+                            "string"
+                              ? suggestion
+                              : suggestion?.text ||
+                                suggestion?.message ||
+                                JSON.stringify(
+                                  suggestion
+                                )}
+                          </p>
+
+                        </div>
                       )
                     )}
 
                   </div>
                 ) : (
                   <p className="muted text-sm">
-                    No keyword information was returned.
+                    No specific recommendations were returned.
                   </p>
                 )}
 
               </div>
 
-              {/* MISSING */}
+              {/* ==================================================
+                  FINAL CTA
+              ================================================== */}
 
-              <div className="card p-[18px]">
+              <div className="card p-[20px]">
 
-                <div className="flex items-center justify-between mb-[14px]">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
                   <div>
-                    <h2 className="font-semibold">
-                      ⚠️ Missing Keywords
-                    </h2>
 
-                    <p className="text-xs muted mt-1">
-                      Keywords you may want to add where relevant.
+                    <h3 className="font-display font-bold text-lg">
+                      Ready to improve your resume?
+                    </h3>
+
+                    <p className="text-sm muted mt-1">
+                      Apply the recommendations and analyze your
+                      updated resume again.
                     </p>
-                  </div>
-
-                  <span className="text-xs font-semibold text-brick">
-                    {result.missingKeywords.length} missing
-                  </span>
-
-                </div>
-
-                {result.missingKeywords.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-
-                    {result.missingKeywords.map(
-                      (keyword, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1.5 rounded-full bg-brick/10 border border-brick/20 text-brick text-xs font-medium"
-                        >
-                          + {keyword}
-                        </span>
-                      )
-                    )}
 
                   </div>
-                ) : (
-                  <div className="rounded-lg bg-teal/10 border border-teal/20 p-3">
-                    <p className="text-sm text-teal font-medium">
-                      ✓ No major missing keywords detected.
-                    </p>
-                  </div>
-                )}
 
-              </div>
-
-            </div>
-
-            {/* SECTION CHECKLIST */}
-
-            <div className="card p-[18px] mb-[16px]">
-
-              <div className="mb-[16px]">
-
-                <h2 className="font-semibold text-lg">
-                  📋 Resume section checklist
-                </h2>
-
-                <p className="text-xs muted mt-1">
-                  Important sections ATS systems expect to find.
-                </p>
-
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[10px]">
-
-                {[
-                  ["contact", "Contact Information", "👤"],
-                  ["summary", "Professional Summary", "📝"],
-                  ["skills", "Skills", "🛠️"],
-                  ["experience", "Work Experience", "💼"],
-                  ["education", "Education", "🎓"],
-                  ["projects", "Projects", "🚀"],
-                ].map(
-                  ([key, label, icon]) => {
-                    const status =
-                      getSectionStatus(key);
-
-                    return (
-                      <div
-                        key={key}
-                        className={`rounded-xl border p-[13px] flex items-center gap-3 ${
-                          status === false
-                            ? "border-brick/20 bg-brick/5"
-                            : status === true
-                            ? "border-teal/20 bg-teal/5"
-                            : "border-border bg-muted/20"
-                        }`}
-                      >
-
-                        <div className="text-lg">
-                          {icon}
-                        </div>
-
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            {label}
-                          </p>
-
-                          <p className="text-xs muted mt-0.5">
-                            {status === true
-                              ? "Detected"
-                              : status === false
-                              ? "Needs attention"
-                              : "Analyzed"}
-                          </p>
-                        </div>
-
-                        <div>
-                          {status === true
-                            ? "✅"
-                            : status === false
-                            ? "⚠️"
-                            : "✓"}
-                        </div>
-
-                      </div>
-                    );
-                  }
-                )}
-
-              </div>
-
-            </div>
-
-            {/* IMPROVEMENTS */}
-
-            <div className="card p-[18px] mb-[16px]">
-
-              <div className="mb-[16px]">
-
-                <h2 className="font-semibold text-lg">
-                  💡 How to improve your resume
-                </h2>
-
-                <p className="text-xs muted mt-1">
-                  Follow these recommendations to increase your
-                  ATS compatibility.
-                </p>
-
-              </div>
-
-              {result.suggestions.length > 0 ? (
-                <div className="space-y-[10px]">
-
-                  {result.suggestions.map(
-                    (suggestion, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 p-[13px]"
-                      >
-
-                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold shrink-0">
-                          {index + 1}
-                        </div>
-
-                        <p className="text-sm leading-relaxed">
-                          {typeof suggestion === "string"
-                            ? suggestion
-                            : suggestion?.text ||
-                              suggestion?.message ||
-                              JSON.stringify(
-                                suggestion
-                              )}
-                        </p>
-
-                      </div>
-                    )
-                  )}
-
-                </div>
-              ) : (
-                <div className="rounded-xl bg-muted/30 border border-border p-[16px]">
-                  <p className="text-sm muted">
-                    Your ATS analyzer did not return specific
-                    recommendations.
-                  </p>
-                </div>
-              )}
-
-            </div>
-
-            {/* FINAL CTA */}
-
-            <div className="card p-[20px] bg-linear-to-r from-primary/10 via-plum/5 to-teal/10">
-
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-                <div>
-
-                  <h3 className="font-display font-bold text-lg">
-                    Ready to improve your resume?
-                  </h3>
-
-                  <p className="text-sm muted mt-1">
-                    Apply these recommendations in the resume
-                    builder and analyze your updated version again.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.location.href =
+                        "/create-resume"
+                    }
+                    className="btn btn-primary shrink-0"
+                  >
+                    ✨ Improve My Resume
+                  </button>
 
                 </div>
 
-                <button
-                  onClick={() =>
-                    window.location.href = "/create-resume"
-                  }
-                  className="btn btn-primary shrink-0"
-                >
-                  ✨ Improve My Resume
-                </button>
-
               </div>
 
             </div>
-
-          </div>
-        )}
+          )}
 
       </div>
+
     </div>
   );
 }
