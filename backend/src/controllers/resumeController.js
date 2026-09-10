@@ -1,163 +1,532 @@
-const Resume = require('../models/Resume');
-const { callGemini } = require('../utils/gemini');
+const Resume = require("../models/Resume");
+const { callGemini } = require("../utils/gemini");
 
+// ============================================================
 // POST /api/resumes/auto-generate
+// ============================================================
+// Generates and saves a resume for the authenticated user.
+
 async function autoGenerate(req, res) {
   try {
     const { title, data: inputData } = req.body || {};
 
     if (!inputData) {
-      return res.status(400).json({ message: 'Resume data is required' });
+      return res.status(400).json({
+        message: "Resume data is required"
+      });
     }
 
-    console.log('📝 Generating resume for:', inputData.fullName);
+    if (!req.userId) {
+      return res.status(401).json({
+        message: "Authentication required"
+      });
+    }
 
-    // Call Gemini AI to analyze and generate ATS-friendly resume
+    console.log(
+      "📝 Generating resume for:",
+      inputData.fullName || inputData.name
+    );
+
     const aiResult = await callGemini(inputData);
 
-    // Save to database
     const resume = await Resume.create({
-      userId: req.userId || '65f000000000000000000000',
-      title: title || `${inputData.fullName || 'My'}'s Resume`,
+      userId: req.userId,
+
+      title:
+        title ||
+        `${inputData.fullName || inputData.name || "My"}'s Resume`,
+
+      templateId:
+        inputData.templateId || "modern-minimal",
+
       data: aiResult
     });
 
-    console.log('✅ Resume generated and saved:', resume._id);
-    return res.json({ resume, pdfUrl: null });
+    console.log(
+      "✅ Resume generated and saved:",
+      resume._id.toString()
+    );
+
+    return res.status(201).json({
+      success: true,
+      resume,
+      pdfUrl: null
+    });
 
   } catch (err) {
-    console.error('autoGenerate ERROR:', err.message);
-    return res.status(500).json({ error: true, message: err.message });
+    console.error(
+      "❌ autoGenerate ERROR:",
+      err.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        err.message ||
+        "Failed to generate resume"
+    });
   }
 }
 
+
+// ============================================================
 // GET /api/resumes
+// ============================================================
+
 async function list(req, res) {
   try {
-    const resumes = await Resume.find({ userId: req.userId }).sort({ updatedAt: -1 });
-    res.json(resumes);
+    if (!req.userId) {
+      return res.status(401).json({
+        message: "Authentication required"
+      });
+    }
+
+    const resumes = await Resume.find({
+      userId: req.userId
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    return res.json(resumes);
+
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ Resume list error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
+
+// ============================================================
 // POST /api/resumes
+// ============================================================
+
 async function create(req, res) {
   try {
-    const { title, templateId, data } = req.body;
-    const resume = await Resume.create({ userId: req.userId, title, templateId, data });
-    res.status(201).json(resume);
+    const { title, templateId, data } = req.body || {};
+
+    if (!req.userId) {
+      return res.status(401).json({
+        error: true,
+        message: "Authentication required",
+      });
+    }
+
+    if (!data) {
+      return res.status(400).json({
+        error: true,
+        message: "Resume data is required",
+      });
+    }
+
+    const resume = await Resume.create({
+      userId: req.userId,
+      title: title || `${data.fullName || "My"}'s Resume`,
+      templateId: templateId || "simple-ats",
+      data,
+    });
+
+    console.log("✅ Resume saved to MongoDB:", resume._id);
+
+    return res.status(201).json(resume);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("❌ Resume create error:", err);
+
+    return res.status(500).json({
+      error: true,
+      message: err.message,
+    });
   }
 }
 
+
+// ============================================================
 // GET /api/resumes/:id
+// ============================================================
+
 async function getOne(req, res) {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.userId });
-    if (!resume) return res.status(404).json({ message: 'Resume not found' });
-    res.json(resume);
+    const resume = await Resume.findOne({
+      _id: req.params.id,
+      userId: req.userId
+    });
+
+    if (!resume) {
+      return res.status(404).json({
+        message: "Resume not found"
+      });
+    }
+
+    return res.json(resume);
+
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ Get resume error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
+
+// ============================================================
 // PUT /api/resumes/:id
+// ============================================================
+
 async function update(req, res) {
   try {
-    const resume = await Resume.findOneAndUpdate(
-      { _id: req.params.id, userId: req.userId },
-      { $set: req.body },
-      { new: true }
+    const allowedFields = {};
+
+    if (req.body.title !== undefined) {
+      allowedFields.title = req.body.title;
+    }
+
+    if (req.body.templateId !== undefined) {
+      allowedFields.templateId =
+        req.body.templateId;
+    }
+
+    if (req.body.data !== undefined) {
+      allowedFields.data = req.body.data;
+    }
+
+    const resume =
+      await Resume.findOneAndUpdate(
+        {
+          _id: req.params.id,
+          userId: req.userId
+        },
+
+        {
+          $set: allowedFields
+        },
+
+        {
+          new: true,
+          runValidators: true
+        }
+      );
+
+    if (!resume) {
+      return res.status(404).json({
+        message: "Resume not found"
+      });
+    }
+
+    console.log(
+      "✅ Resume updated:",
+      resume._id.toString()
     );
-    if (!resume) return res.status(404).json({ message: 'Resume not found' });
-    res.json(resume);
+
+    return res.json(resume);
+
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ Resume update error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
+
+// ============================================================
 // DELETE /api/resumes/:id
+// ============================================================
+
 async function remove(req, res) {
   try {
-    const resume = await Resume.findOneAndDelete({ _id: req.params.id, userId: req.userId });
-    if (!resume) return res.status(404).json({ message: 'Resume not found' });
-    res.json({ message: 'Deleted successfully' });
+    const resume =
+      await Resume.findOneAndDelete({
+        _id: req.params.id,
+        userId: req.userId
+      });
+
+    if (!resume) {
+      return res.status(404).json({
+        message: "Resume not found"
+      });
+    }
+
+    console.log(
+      "🗑️ Resume deleted:",
+      resume._id.toString()
+    );
+
+    return res.json({
+      success: true,
+      message: "Deleted successfully"
+    });
+
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ Resume delete error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
+
+// ============================================================
 // POST /api/resumes/:id/ai-populate
-// Re-analyze and improve existing resume with AI
+// ============================================================
+
 async function aiPopulate(req, res) {
   try {
-    const resume = await Resume.findById(req.params.id);
-    if (!resume) return res.status(404).json({ message: 'Resume not found' });
+    const resume =
+      await Resume.findOne({
+        _id: req.params.id,
+        userId: req.userId
+      });
 
-    console.log('🤖 AI improving resume:', resume._id);
-    const aiResult = await callGemini(resume.data);
+    if (!resume) {
+      return res.status(404).json({
+        message: "Resume not found"
+      });
+    }
 
-    resume.data = { ...resume.data, ...aiResult };
+    console.log(
+      "🤖 AI improving resume:",
+      resume._id.toString()
+    );
+
+    const aiResult =
+      await callGemini(resume.data);
+
+    resume.data = {
+      ...resume.data,
+      ...aiResult
+    };
+
     await resume.save();
 
-    res.json(resume);
+    return res.json(resume);
+
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ AI populate error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
+
+// ============================================================
 // POST /api/resumes/:id/generate-pdf
+// ============================================================
+
 async function generatePdfHandler(req, res) {
   try {
-    const resume = await Resume.findById(req.params.id);
-    if (!resume) return res.status(404).json({ message: 'Resume not found' });
-    res.json({ pdfUrl: null, message: 'Use frontend PDF generation' });
+    const resume =
+      await Resume.findOne({
+        _id: req.params.id,
+        userId: req.userId
+      });
+
+    if (!resume) {
+      return res.status(404).json({
+        message: "Resume not found"
+      });
+    }
+
+    return res.json({
+      pdfUrl: resume.pdfUrl || null,
+      message: "Use frontend PDF generation"
+    });
+
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ Generate PDF error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
+
+// ============================================================
 // POST /api/resumes/:id/ats-check
+// ============================================================
+
 async function atsCheck(req, res) {
   try {
-    const resume = await Resume.findById(req.params.id);
-    if (!resume) return res.status(404).json({ message: 'Resume not found' });
+    const resume =
+      await Resume.findOne({
+        _id: req.params.id,
+        userId: req.userId
+      });
+
+    if (!resume) {
+      return res.status(404).json({
+        message: "Resume not found"
+      });
+    }
 
     const data = resume.data || {};
+
     const issues = [];
     const suggestions = [];
 
-    if (!data.summary || data.summary.length < 50) {
-      issues.push('Professional summary is missing or too short');
-      suggestions.push('Add a 3-4 sentence professional summary at the top');
-    }
-    if (!data.skills || data.skills.length < 5) {
-      issues.push('Too few skills listed');
-      suggestions.push('Add 10-15 relevant technical and soft skills');
-    }
-    if (!data.experience || data.experience.length === 0) {
-      issues.push('No work experience found');
-      suggestions.push('Add at least one work experience with bullet points');
-    }
-    if (!data.email) {
-      issues.push('Email address is missing');
-      suggestions.push('Add your professional email address');
-    }
-    if (!data.phone) {
-      issues.push('Phone number is missing');
-      suggestions.push('Add your contact phone number');
+    // ----------------------------------------------------------
+    // SUMMARY
+    // ----------------------------------------------------------
+
+    if (
+      !data.summary ||
+      data.summary.trim().length < 50
+    ) {
+      issues.push(
+        "Professional summary is missing or too short"
+      );
+
+      suggestions.push(
+        "Add a concise 3-4 sentence professional summary"
+      );
     }
 
-    const score = Math.max(30, 100 - (issues.length * 15));
-    const keywords = Array.isArray(data.skills) ? data.skills.slice(0, 10) : [];
+    // ----------------------------------------------------------
+    // SKILLS
+    // ----------------------------------------------------------
 
-    return res.json({ result: { score, issues, suggestions, keywords } });
+    if (
+      !Array.isArray(data.skills) ||
+      data.skills.length < 5
+    ) {
+      issues.push(
+        "Too few skills listed"
+      );
+
+      suggestions.push(
+        "Add 10-15 relevant skills supported by your experience"
+      );
+    }
+
+    // ----------------------------------------------------------
+    // EXPERIENCE
+    // ----------------------------------------------------------
+
+    const experience =
+      Array.isArray(data.experience)
+        ? data.experience
+        : [];
+
+    if (experience.length === 0) {
+      issues.push(
+        "No work experience found"
+      );
+
+      suggestions.push(
+        "Add relevant internship, work, or practical experience"
+      );
+    }
+
+    // ----------------------------------------------------------
+    // CONTACT
+    // ----------------------------------------------------------
+
+    const contact =
+      data.contact || {};
+
+    const email =
+      data.email ||
+      contact.email;
+
+    const phone =
+      data.phone ||
+      contact.phone;
+
+    if (!email) {
+      issues.push(
+        "Email address is missing"
+      );
+
+      suggestions.push(
+        "Add a professional email address"
+      );
+    }
+
+    if (!phone) {
+      issues.push(
+        "Phone number is missing"
+      );
+
+      suggestions.push(
+        "Add your contact phone number"
+      );
+    }
+
+    // ----------------------------------------------------------
+    // ATS SCORE
+    // ----------------------------------------------------------
+
+    const score = Math.max(
+      30,
+      100 - issues.length * 15
+    );
+
+    const keywords =
+      Array.isArray(data.atsKeywords)
+        ? data.atsKeywords.slice(0, 15)
+        : Array.isArray(data.skills)
+          ? data.skills.slice(0, 15)
+          : [];
+
+    return res.json({
+      result: {
+        score,
+        issues,
+        suggestions,
+        keywords
+      }
+    });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(
+      "❌ ATS check error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      message: err.message
+    });
   }
 }
 
-module.exports = { list, create, getOne, update, remove, aiPopulate, generatePdfHandler, autoGenerate, atsCheck };
+
+// ============================================================
+// EXPORT
+// ============================================================
+
+module.exports = {
+  list,
+  create,
+  getOne,
+  update,
+  remove,
+  aiPopulate,
+  generatePdfHandler,
+  autoGenerate,
+  atsCheck
+};

@@ -23,6 +23,7 @@ import Templates from "./components/Pages/Templates";
 import Template from "./components/Pages/Template";
 import TemplateBuilder from "./components/Pages/TemplateBuilder";
 import Settings from "./components/Pages/Settings";
+import Admin from "./components/Pages/Admin";
 
 import Login from "./components/Pages/Login";
 import Register from "./components/Pages/Register";
@@ -61,23 +62,32 @@ function AppRoutes() {
         element={<Resume />}
       />
 
-              <Route
-                path="/create-resume"
-                element={<Resume />}
-              />
+      <Route
+        path="/create-resume"
+        element={<Resume />}
+      />
 
 
+      <Route path="/resume/view/:id" element={<Resume />} /> 
+      
+      <Route path="/resume/edit/:id" element={<Resume />} />
+{/* ADMIN */}
+<Route
+  path="/admin"
+  element={<Admin />}
+/>
       {/* RESUMES */}
       <Route
         path="/resumes"
         element={<Resumes />}
       />
 
-      <Route
+     
+
+       <Route
         path="/total-resumes"
         element={<TotalResumes />}
       />
-
 
       {/* AI SUGGESTIONS */}
       <Route

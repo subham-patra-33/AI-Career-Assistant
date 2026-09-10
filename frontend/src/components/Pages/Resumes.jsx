@@ -109,29 +109,28 @@ export default function Resumes() {
                         : ''}
                     </div>
                   </div>
+<div className="flex items-center gap-2">
+  <button
+    className="btn"
+    onClick={() => navigate(`/resume/view/${r._id || r.id}`)}
+  >
+    View
+  </button>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => navigate(`/resume?id=${r._id || r.id}`)}
-                    >
-                      View
-                    </button>
+  <button
+    className="btn"
+    onClick={() => navigate(`/resume/edit/${r._id || r.id}`)}
+  >
+    Edit
+  </button>
 
-                    <button
-                      className="btn"
-                      onClick={() => navigate(`/resume?id=${r._id || r.id}&edit=true`)}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      className="btn"
-                      onClick={() => handleDelete(r._id || r.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+  <button
+    className="btn"
+    onClick={() => handleDelete(r._id || r.id)}
+  >
+    Delete
+  </button>
+</div>
                 </div>
               </div>
             ))}
