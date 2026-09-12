@@ -68,10 +68,6 @@ import TemplateBuilder from "./components/Pages/TemplateBuilder";
 
 import Settings from "./components/Pages/Settings";
 
-// ============================================================
-// AUTH
-// ============================================================
-
 import Login from "./components/Pages/Login";
 import Register from "./components/Pages/Register";
 
@@ -79,9 +75,122 @@ import Register from "./components/Pages/Register";
 // ============================================================
 // HOME LAYOUT
 // ============================================================
-// IMPORTANT:
-// Sidebar + Navbar are ONLY shown on /home.
-// All other pages are completely separate/full-screen pages.
+
+function AppRoutes() {
+  return (
+    <Routes>
+
+      {/* HOME */}
+      <Route
+        path="/home"
+        element={<Home />}
+      />
+
+
+      {/* DASHBOARD */}
+      <Route
+        path="/db"
+        element={<Dashboard />}
+      />
+
+      <Route
+        path="/dashboard"
+        element={<Dashboard />}
+      />
+
+
+      {/* RESUME */}
+      <Route
+        path="/resume"
+        element={<Resume />}
+      />
+
+      <Route
+        path="/create-resume"
+        element={<Resume />}
+      />
+
+
+      {/* RESUMES */}
+      <Route
+        path="/resumes"
+        element={<Resumes />}
+      />
+
+      <Route
+        path="/total-resumes"
+        element={<TotalResumes />}
+      />
+
+
+      {/* AI SUGGESTIONS */}
+      <Route
+        path="/ai-suggestions"
+        element={<AiSuggestions />}
+      />
+
+
+      {/* JOB MATCH */}
+      <Route
+        path="/job-match"
+        element={<JobMatch />}
+      />
+
+
+      {/* ATS */}
+      <Route
+        path="/ats"
+        element={<ATS />}
+      />
+
+
+      {/* TEMPLATES */}
+      <Route
+        path="/templates"
+        element={<Templates />}
+      />
+
+      <Route
+        path="/template"
+        element={<Template />}
+      />
+
+      <Route
+        path="/template-builder"
+        element={<TemplateBuilder />}
+      />
+
+
+      {/* SETTINGS */}
+      <Route
+        path="/setting"
+        element={<Settings />}
+      />
+
+      <Route
+        path="/settings"
+        element={<Settings />}
+      />
+
+
+      {/* FALLBACK */}
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/home"
+            replace
+          />
+        }
+      />
+
+    </Routes>
+  );
+}
+
+
+// ============================================================
+// HOME LAYOUT
 // ============================================================
 
 function HomeLayout() {

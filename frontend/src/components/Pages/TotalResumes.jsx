@@ -146,13 +146,13 @@ export default function TotalResumes() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 pt-2 border-t border-border">
-                    <button 
-                      onClick={() => navigate(`/resume?id=${r._id || r.id}`)}
-                      className="flex-1 btn btn-secondary text-sm"
-                      aria-label={`View resume: ${r.title || 'Untitled'}`}
-                    >
-                      View
-                    </button>
+                   <button
+  onClick={() => navigate(`/resume/view/${r._id || r.id}`)}
+  className="flex-1 btn btn-secondary text-sm"
+  aria-label={`View resume: ${r.title || 'Untitled'}`}
+>
+  View
+</button>
                     <button 
                       onClick={() => navigate(`/resume?id=${r._id || r.id}&edit=true`)}
                       className="flex-1 btn text-sm"

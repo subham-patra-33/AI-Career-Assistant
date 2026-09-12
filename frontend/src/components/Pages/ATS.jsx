@@ -11,6 +11,7 @@ export default function ATS() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [targetRole, setTargetRole] = useState("");
 
   const API_URL =
     import.meta.env.VITE_API_URL ||
@@ -273,93 +274,18 @@ export default function ATS() {
       return;
     }
 
-    if (
-      selectedFile.size >
-      10 * 1024 * 1024
-    ) {
-      setError(
-        "File size must be less than 10 MB."
-      );
-      return;
-    }
-
     setLoading(true);
     setError("");
     setResult(null);
 
     try {
-      const token = getToken();
+      const response = await API.uploadAts(selectedFile);
 
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        selectedFile
-      );
-
-      const response =
-        await fetch(
-          `${API_URL}/api/ai/ats`,
-          {
-            method: "POST",
-
-            headers: {
-              ...(token
-                ? {
-                    Authorization: `Bearer ${token}`,
-                  }
-                : {}),
-            },
-
-            body: formData,
-          }
-        );
-
-      let data = {};
-
-      try {
-        data =
-          await response.json();
-      } catch {
-        throw new Error(
-          "The server returned an invalid response."
-        );
+      if (!response) {
+        throw new Error("No response received from ATS analyzer.");
       }
 
-      // IMPORTANT:
-      // Do NOT convert backend errors into 0 score.
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            data?.message ||
-            `ATS analysis failed (${response.status}).`
-        );
-      }
-
-      if (
-        data?.success === false
-      ) {
-        throw new Error(
-          data?.error ||
-            data?.message ||
-            "ATS analysis failed."
-        );
-      }
-
-      const normalized =
-        normalizeResult(data);
-
-      if (
-        !normalized ||
-        normalized.score === null ||
-        normalized.score === undefined
-      ) {
-        throw new Error(
-          "The ATS analyzer returned an invalid score."
-        );
-      }
+      const normalized = normalizeResult(response);
 
       setResult(normalized);
 
@@ -735,12 +661,11 @@ export default function ATS() {
               UPLOAD
           ================================================== */}
 
-          <div className="card p-[18px]">
+    <div className="card p-[18px]">
 
             <div className="flex items-center justify-between mb-[14px]">
 
               <div>
-
                 <h2 className="font-semibold text-lg">
                   Upload your resume
                 </h2>
@@ -748,14 +673,15 @@ export default function ATS() {
                 <p className="text-xs muted mt-1">
                   PDF, DOC, or DOCX · Maximum 10 MB
                 </p>
-
               </div>
 
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
                 📄
               </div>
 
             </div>
+
+            {/* DROP ZONE */}
 
             {!file ? (
               <div

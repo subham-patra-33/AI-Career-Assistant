@@ -18,7 +18,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/resumes', require('./routes/resumes'));
 app.use('/api/ai', require('./routes/aiResume'));
 app.use('/api/ai', require('./routes/resumeImport'));
-
+app.use('/api/ats', require('./routes/ats'));
+app.use('/api/admin', require('./routes/admin'));
 // Root route (friendly message instead of default "Cannot GET /")
 app.get('/', (req, res) => {
   res.json({

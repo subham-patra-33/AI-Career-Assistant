@@ -6,11 +6,10 @@ import React, {
 } from "react";
 import {
   useLocation,
-  useNavigate,
+  useNavigate, useParams 
 } from "react-router-dom";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-
+import html2canvas from "html2canvas-pro";
 import AuthGate from "../AuthGate";
 import API from "../../lib/api";
 import { getToken, isAuthed } from "../../lib/auth";
@@ -373,10 +372,6 @@ function normalizeGeneratedResume(raw = {}) {
     raw ||
     {};
 
-  // The PDF-import backend returns contact information inside
-  // `contact`. Older/generated resume responses may return these
-  // values at the top level. Support both formats so imported
-  // contact details are never lost.
   const contact =
     resume?.contact ||
     resume?.contactInfo ||
@@ -385,6 +380,18 @@ function normalizeGeneratedResume(raw = {}) {
 
   return {
     ...emptyResume,
+
+    // IMPORTANT: preserve saved resume metadata
+    _id: resume._id || resume.id || "",
+    id: resume.id || resume._id || "",
+    templateId:
+      resume.templateId ||
+      resume.template ||
+      "simple-ats",
+    template:
+      resume.template ||
+      resume.templateId ||
+      "simple-ats",
 
     fullName:
       resume.fullName ||
@@ -644,8 +651,11 @@ const TEMPLATE_CONFIG = {
 // ============================================================
 
 export default function Resume() {
+    const location = useLocation();
+
   const navigate = useNavigate();
-  const location = useLocation();
+    const { id } = useParams();
+
   const fileInputRef = useRef(null);
 
   // ==========================================================
@@ -711,6 +721,7 @@ export default function Resume() {
     github: "",
 
     targetRole: "",
+    careerLevel: "Student / New Graduate",
     jobDescription: "",
 
     summary: "",
@@ -813,23 +824,274 @@ export default function Resume() {
   // ERRORS
   // ==========================================================
 
-  const [error, setError] =
-    useState("");
+ const [error, setError] =
+  useState("");
 
-  const [success, setSuccess] =
-    useState("");
+const [success, setSuccess] =
+  useState("");
 
-  const [showErrorModal, setShowErrorModal] =
-    useState(false);
+const [showErrorModal, setShowErrorModal] =
+  useState(false);
 
-  const [errorModalTitle, setErrorModalTitle] =
-    useState("");
+const [errorModalTitle, setErrorModalTitle] =
+  useState("");
 
-  const [errorModalMessage, setErrorModalMessage] =
-    useState("");
+const [errorModalMessage, setErrorModalMessage] =
+  useState("");
 
-  const [errorModalRetry, setErrorModalRetry] =
-    useState(true);
+const [errorModalRetry, setErrorModalRetry] =
+  useState(true);
+
+
+// ==========================================================
+// LOAD SAVED RESUME
+// ==========================================================
+
+// ==========================================================
+// LOAD SAVED RESUME
+// ==========================================================
+
+useEffect(() => {
+  if (!id) return;
+
+  async function loadSavedResume() {
+    try {
+      setIsGenerating(false);
+      setError("");
+      setSuccess("");
+
+      const token = getToken();
+
+      if (!token) {
+        navigate("/");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/resumes/${id}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      console.log("📥 Saved resume API response:", result);
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message ||
+          result?.error ||
+          "Failed to load saved resume"
+        );
+      }
+
+      /*
+       * Support all common backend response shapes:
+       *
+       * { data: resume }
+       * { resume: resume }
+       * resume
+       */
+      const rawResume =
+        result?.data ||
+        result?.resume ||
+        result;
+
+      if (!rawResume || typeof rawResume !== "object") {
+        throw new Error(
+          "Invalid resume data received from server."
+        );
+      }
+
+      const savedResume =
+        normalizeGeneratedResume(rawResume);
+
+      console.log(
+        "✅ Normalized saved resume:",
+        savedResume
+      );
+
+      /*
+       * Restore the saved template.
+       */
+      const savedTemplate =
+        rawResume?.templateId ||
+        rawResume?.template ||
+        savedResume?.templateId ||
+        "simple-ats";
+
+      setSelectedTemplate(
+        TEMPLATE_CONFIG[savedTemplate]
+          ? savedTemplate
+          : "simple-ats"
+      );
+
+      /*
+       * Put the saved resume into state.
+       */
+      setGeneratedResume(savedResume);
+
+      /*
+       * IMPORTANT:
+       * This tells the component that this is
+       * a saved resume and not a new resume builder.
+       */
+      setShowEditor(true);
+
+      /*
+       * Restore form data.
+       */
+      setForm((previous) => ({
+        ...previous,
+
+        fullName:
+          savedResume.fullName ||
+          previous.fullName,
+
+        email:
+          savedResume.email ||
+          previous.email,
+
+        phone:
+          savedResume.phone ||
+          previous.phone,
+
+        location:
+          savedResume.location ||
+          previous.location,
+
+        linkedin:
+          savedResume.linkedin ||
+          previous.linkedin,
+
+        github:
+          savedResume.github ||
+          previous.github,
+
+        targetRole:
+          savedResume.targetRole ||
+          previous.targetRole,
+
+        summary:
+          savedResume.summary ||
+          previous.summary,
+
+        skills:
+          Array.isArray(savedResume.skills)
+            ? savedResume.skills.join(", ")
+            : previous.skills,
+
+experience:
+  Array.isArray(savedResume.experience)
+    ? savedResume.experience
+        .map((item) =>
+          [
+            item.title || item.role || item.position || "",
+            item.company || item.organization || "",
+            item.date || item.dates || item.duration || "",
+            ...(item.bullets || []),
+            item.description || "",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        )
+        .filter(Boolean)
+        .join("\n")
+    : String(savedResume.experience || previous.experience),
+
+projects:
+  Array.isArray(savedResume.projects)
+    ? savedResume.projects
+        .map((item) =>
+          [
+            item.title || item.name || "",
+            item.description || item.details || "",
+            Array.isArray(item.technologies)
+              ? item.technologies.join(", ")
+              : item.technologies || "",
+          ]
+            .filter(Boolean)
+            .join(" — ")
+        )
+        .filter(Boolean)
+        .join("\n")
+    : String(savedResume.projects || previous.projects),
+
+education:
+  Array.isArray(savedResume.education)
+    ? savedResume.education
+        .map((item) =>
+          [
+            item.degree || item.title || "",
+            item.institution || item.school || item.university || "",
+            item.date || item.dates || item.year || "",
+          ]
+            .filter(Boolean)
+            .join(" — ")
+        )
+        .filter(Boolean)
+        .join("\n")
+    : String(savedResume.education || previous.education),
+        certifications:
+          Array.isArray(
+            savedResume.certifications
+          )
+            ? savedResume.certifications.join("\n")
+            : previous.certifications,
+
+        achievements:
+          Array.isArray(
+            savedResume.achievements
+          )
+            ? savedResume.achievements.join("\n")
+            : previous.achievements,
+      }));
+
+      /*
+       * Keep local copy as well.
+       */
+      localStorage.setItem(
+        "generatedResume",
+        JSON.stringify(savedResume)
+      );
+
+      localStorage.setItem(
+        "generatedResumeId",
+        savedResume._id || id
+      );
+
+      console.log(
+        "✅ Saved resume displayed successfully."
+      );
+
+      setSuccess(
+        "Resume loaded successfully."
+      );
+
+    } catch (loadError) {
+      console.error(
+        "❌ Failed to load saved resume:",
+        loadError
+      );
+
+      setGeneratedResume(null);
+      setShowEditor(false);
+
+      setError(
+        loadError?.message ||
+        "Failed to load saved resume."
+      );
+    }
+  }
+
+  loadSavedResume();
+}, [id, navigate]);
+
 
   // ==========================================================
   // FORM UPDATE
@@ -902,19 +1164,20 @@ export default function Resume() {
           : splitList(form.skills),
 
       experience:
-        uploaded?.experience?.length
-          ? uploaded.experience
-          : form.experience.trim(),
+  uploaded?.experience?.length
+    ? uploaded.experience
+    : String(form.experience || "").trim(),
 
-      projects:
-        uploaded?.projects?.length
-          ? uploaded.projects
-          : form.projects.trim(),
+projects:
+  uploaded?.projects?.length
+    ? uploaded.projects
+    : String(form.projects || "").trim(),
 
-      education:
-        uploaded?.education?.length
-          ? uploaded.education
-          : form.education.trim(),
+education:
+  uploaded?.education?.length
+    ? uploaded.education
+    : String(form.education || "").trim(),
+
 
       certifications:
         uploaded?.certifications?.length
@@ -1838,9 +2101,67 @@ export default function Resume() {
               finalResume
             );
 
-            setSuccess(
-              "Your resume has been generated successfully."
-            );
+            // --------------------------------------------------------
+            // SAVE GENERATED RESUME TO THE LOGGED-IN USER'S ACCOUNT
+            // --------------------------------------------------------
+            // Keep the existing generation/preview flow intact, but
+            // persist the generated resume in MongoDB as well.
+            try {
+              const saveResponse = await fetch(
+                `${API_URL}/api/resumes`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${getToken()}`,
+                  },
+                  body: JSON.stringify({
+                    title:
+                      `${finalResume.fullName || "My"}'s Resume`,
+                    templateId:
+                      finalResume.templateId ||
+                      selectedTemplate ||
+                      "simple-ats",
+                    data: finalResume,
+                  }),
+                }
+              );
+
+              const saveResult =
+                await saveResponse.json().catch(() => ({}));
+
+              if (!saveResponse.ok) {
+                console.warn(
+                  "Resume generated successfully, but could not be saved to the account:",
+                  saveResult
+                );
+                setSuccess(
+                  "Your resume has been generated successfully. It was not saved to My Resumes."
+                );
+              } else {
+                // Keep the database id available locally without
+                // changing the existing generated-resume structure.
+              if (saveResult?._id) {
+  localStorage.setItem("generatedResumeId", saveResult._id);
+}
+
+// Refresh "My Resumes" page/list immediately
+window.dispatchEvent(new CustomEvent("resumes:changed"));
+
+setSuccess("Your resume has been generated and saved to My Resumes.");
+              
+              }
+            } catch (saveError) {
+              // Saving must never make an otherwise successful AI
+              // generation fail.
+              console.warn(
+                "Resume save error:",
+                saveError
+              );
+              setSuccess(
+                "Your resume has been generated successfully. It could not be saved to My Resumes right now."
+              );
+            }
 
             setIsGenerating(false);
 
@@ -1936,88 +2257,98 @@ export default function Resume() {
   // PDF GENERATION
   // ==========================================================
 
-  const downloadPDF = async () => {
-    try {
-      const resumeElement =
-        document.getElementById(
-          "generated-resume-document"
-        );
+const downloadPDF = async () => {
+  try {
+    const resumeElement = document.getElementById(
+      "generated-resume-document"
+    );
 
-      if (!resumeElement) {
-        console.error(
-          "Generated resume element not found."
-        );
+    if (!resumeElement) {
+      showUserError(
+        "PDF Could Not Be Created",
+        "Resume preview was not found. Please generate your resume again.",
+        true
+      );
+      return;
+    }
 
-        showUserError(
-          "PDF Could Not Be Created",
-          "The generated resume preview could not be found. Please generate your resume again.",
-          true
-        );
+    setSuccess("Creating your PDF...");
 
-        return;
-      }
+    await new Promise((resolve) =>
+      setTimeout(resolve, 500)
+    );
 
-      // Capture the EXACT template currently visible
-      // in the generated resume preview.
-      await new Promise((resolve) =>
-        setTimeout(resolve, 300)
+ const canvas = await html2canvas(resumeElement, {
+  scale: 2,
+  useCORS: true,
+  allowTaint: false,
+  backgroundColor: "#ffffff",
+  logging: false,
+  imageTimeout: 30000,
+  scrollX: 0,
+  scrollY: 0,
+  width: resumeElement.scrollWidth,
+  height: resumeElement.scrollHeight,
+  windowWidth: resumeElement.scrollWidth,
+  windowHeight: resumeElement.scrollHeight,
+});
+
+    if (
+      !canvas.width ||
+      !canvas.height
+    ) {
+      throw new Error(
+        "Resume could not be rendered."
+      );
+    }
+
+    const imgData =
+      canvas.toDataURL(
+        "image/jpeg",
+        0.95
       );
 
-      const canvas =
-        await html2canvas(
-          resumeElement,
-          {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor:
-              "#ffffff",
-            logging: false,
-            imageTimeout: 15000,
-            scrollX: 0,
-            scrollY: 0,
-            windowWidth:
-              resumeElement.scrollWidth,
-            windowHeight:
-              resumeElement.scrollHeight,
-          }
-        );
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+    });
 
-      const imgData =
-        canvas.toDataURL(
-          "image/png",
-          1.0
-        );
+    const pageWidth = 210;
+    const pageHeight = 297;
 
-      const pdf =
-        new jsPDF({
-          orientation:
-            "portrait",
-          unit: "mm",
-          format: "a4",
-          compress: true,
-        });
+    const imgWidth = pageWidth;
 
-      const pageWidth = 210;
-      const pageHeight = 297;
+    const imgHeight =
+      (canvas.height * imgWidth) /
+      canvas.width;
 
-      const imgWidth =
-        pageWidth;
+    let heightLeft = imgHeight;
+    let position = 0;
 
-      const imgHeight =
-        (canvas.height *
-          imgWidth) /
-        canvas.width;
+    pdf.addImage(
+      imgData,
+      "JPEG",
+      0,
+      position,
+      imgWidth,
+      imgHeight,
+      undefined,
+      "FAST"
+    );
 
-      let heightLeft =
-        imgHeight;
+    heightLeft -= pageHeight;
 
-      let position = 0;
+    while (heightLeft > 0) {
+      position =
+        heightLeft - imgHeight;
 
-      // First page
+      pdf.addPage();
+
       pdf.addImage(
         imgData,
-        "PNG",
+        "JPEG",
         0,
         position,
         imgWidth,
@@ -2026,67 +2357,69 @@ export default function Resume() {
         "FAST"
       );
 
-      heightLeft -=
-        pageHeight;
-
-      // Additional pages for longer resumes
-      while (
-        heightLeft > 0
-      ) {
-        position =
-          heightLeft -
-          imgHeight;
-
-        pdf.addPage();
-
-        pdf.addImage(
-          imgData,
-          "PNG",
-          0,
-          position,
-          imgWidth,
-          imgHeight,
-          undefined,
-          "FAST"
-        );
-
-        heightLeft -=
-          pageHeight;
-      }
-
-      const safeName =
-        (
-          livePreviewData?.fullName ||
-          form?.fullName ||
-          "resume"
-        )
-          .replace(
-            /[^a-z0-9]+/gi,
-            "_"
-          )
-          .replace(
-            /^_+|_+$/g,
-            "");
-
-      pdf.save(
-        `${
-          safeName ||
-          "resume"
-        }_resume.pdf`
-      );
-    } catch (err) {
-      console.error(
-        "PDF generation error:",
-        err
-      );
-
-      showUserError(
-        "PDF Could Not Be Created",
-        "We couldn't create the PDF right now. Please try again.",
-        true
-      );
+      heightLeft -= pageHeight;
     }
-  };
+
+    const safeName = (
+      livePreviewData?.fullName ||
+      form?.fullName ||
+      "resume"
+    )
+      .replace(
+        /[^a-z0-9]+/gi,
+        "_"
+      )
+      .replace(
+        /^_+|_+$/g,
+        "");
+
+    const fileName =
+      `${safeName || "resume"}_resume.pdf`;
+
+    const pdfBlob =
+      pdf.output("blob");
+
+    const blobUrl =
+      URL.createObjectURL(
+        pdfBlob
+      );
+
+    const link =
+      document.createElement("a");
+
+    link.href = blobUrl;
+    link.download = fileName;
+    link.style.display = "none";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    setTimeout(() => {
+      URL.revokeObjectURL(
+        blobUrl
+      );
+    }, 1000);
+
+    setSuccess(
+      "✓ Resume PDF downloaded successfully."
+    );
+  } catch (err) {
+    console.error(
+      "PDF generation error:",
+      err
+    );
+
+    showUserError(
+      "PDF Could Not Be Created",
+      err?.message ||
+        "We couldn't create the PDF right now. Please try again.",
+      true
+    );
+  }
+};
 
   // ==========================================================
   // BROWSER PREVIEW
@@ -3367,6 +3700,134 @@ export default function Resume() {
   // EDITOR
   // ==========================================================
 
+  // ==========================================================
+// SAVED RESUME VIEW / EDIT
+// ==========================================================
+
+// ==========================================================
+// SAVED RESUME VIEW
+// ==========================================================
+
+if (
+  id &&
+  generatedResume &&
+  !location.pathname.startsWith("/resume/edit/")
+) {
+  return (
+    <AuthGate>
+      <div className="min-h-screen w-full bg-slate-100 dark:bg-slate-950 px-4 py-6">
+
+        <div className="mx-auto w-full max-w-6xl">
+
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <div className="mb-5 flex items-center justify-between gap-3">
+
+            {/* BACK */}
+
+            <button
+              type="button"
+              onClick={() => navigate("/db")}
+              className="
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+                px-4
+                py-2
+                text-sm
+                font-semibold
+                text-slate-700
+                hover:bg-slate-50
+                dark:border-slate-700
+                dark:bg-slate-900
+                dark:text-slate-200
+                dark:hover:bg-slate-800
+              "
+            >
+              ← Back
+            </button>
+
+            <div className="flex gap-2">
+
+              {/* EDIT */}
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(`/resume/edit/${id}`)
+                }
+                className="
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-white
+                  px-4
+                  py-2
+                  text-sm
+                  font-semibold
+                  text-slate-700
+                  hover:bg-slate-50
+                  dark:border-slate-700
+                  dark:bg-slate-900
+                  dark:text-slate-200
+                  dark:hover:bg-slate-800
+                "
+              >
+                Edit
+              </button>
+
+              {/* DOWNLOAD */}
+
+              <button
+                type="button"
+                onClick={() =>
+                  downloadPDF(livePreviewData)
+                }
+                className="
+                  rounded-xl
+                  bg-slate-900
+                  px-4
+                  py-2
+                  text-sm
+                  font-semibold
+                  text-white
+                  hover:bg-slate-800
+                "
+              >
+                Download PDF
+              </button>
+
+            </div>
+          </div>
+
+          {/* ==================================================
+              RESUME PREVIEW
+          ================================================== */}
+
+          <div className="flex justify-center">
+
+            <div
+              id="generated-resume-document"
+              className="w-full"
+            >
+
+              <TemplateResumePreview
+                data={livePreviewData}
+                template={selectedTemplate}
+              />
+
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </AuthGate>
+  );
+}
   if (showEditor) {
     return (
       <AuthGate>
@@ -3451,29 +3912,27 @@ export default function Resume() {
             >
 
               <button
-                type="button"
-                onClick={
-                  handleBack
-                }
-                className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-full
-                  border
-                  border-slate-200
-                  bg-white
-                  text-lg
-                  hover:bg-slate-50
-                  dark:border-slate-700
-                  dark:bg-slate-900
-                  dark:hover:bg-slate-800
-                "
-              >
-                ←
-              </button>
+  type="button"
+  onClick={downloadPDF}
+  className="
+    rounded-xl
+    border
+    border-slate-200
+    bg-white
+    px-5
+    py-3
+    text-sm
+    font-bold
+    text-slate-700
+    hover:bg-slate-50
+    dark:border-slate-700
+    dark:bg-slate-900
+    dark:text-slate-200
+    dark:hover:bg-slate-800
+  "
+>
+  Download PDF
+</button>
 
               <div>
 
