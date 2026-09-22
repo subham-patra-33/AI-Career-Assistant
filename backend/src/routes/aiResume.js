@@ -4,123 +4,389 @@ const router = express.Router();
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
+const https = require("https");
+
+const Resume = require("../models/Resume");
+const auth = require("../middleware/auth");
 
 const {
   callGemini,
   generateSuggestions,
-  generateMockInterview,
-  evaluateInterviewAnswer,
   generateGeminiJSON,
 } = require("../utils/gemini");
-
-const auth = require("../middleware/auth");
-
-// ============================================================
-// AUTHENTICATION
-// ============================================================
 
 router.use(auth);
 
 // ============================================================
-// FILE UPLOAD CONFIGURATION
+// UPLOAD CONFIGURATION
 // ============================================================
 
 const upload = multer({
   storage: multer.memoryStorage(),
-
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB
-  },
-
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const fileName =
-      file.originalname || "";
-
-    const mimeType =
-      file.mimetype || "";
+    const name = String(file.originalname || "").toLowerCase();
+    const mime = String(file.mimetype || "").toLowerCase();
 
     if (
-      mimeType === "application/pdf" ||
-      fileName.toLowerCase().endsWith(".pdf")
+      mime === "application/pdf" ||
+      name.endsWith(".pdf")
     ) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(
-          "Only PDF resume files are supported."
-        )
-      );
+      return cb(null, true);
     }
+
+    cb(new Error("Only PDF resume files are supported."));
   },
 });
-
-// ============================================================
-// ATS FILE UPLOAD CONFIGURATION
-// Supports PDF + DOCX
-// ============================================================
 
 const atsUpload = multer({
   storage: multer.memoryStorage(),
-
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB
-  },
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 // ============================================================
-// HELPER FUNCTIONS
+// HELPERS
 // ============================================================
 
-const safeNumber = (value, fallback = 0) => {
-  const number = Number(value);
+function safeString(value, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  return value.trim();
+}
 
-  if (!Number.isFinite(number)) {
-    return fallback;
-  }
-
-  return Math.max(
-    0,
-    Math.min(100, number)
-  );
-};
-
-const safeArray = (value) => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+function safeArray(value) {
+  if (!Array.isArray(value)) return [];
 
   return value
     .map((item) => {
-      if (
-        typeof item === "string"
-      ) {
-        return item.trim();
-      }
-
-      if (
-        item === null ||
-        item === undefined
-      ) {
-        return "";
-      }
-
+      if (typeof item === "string") return item.trim();
+      if (item == null) return "";
       return String(item).trim();
     })
     .filter(Boolean);
-};
+}
 
-const safeString = (
-  value,
-  fallback = ""
-) => {
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, n));
+}
+
+function normalizeResumeTitle(data = {}) {
+  const name =
+    safeString(data.fullName) ||
+    safeString(data.name) ||
+    "My";
+
+  const role =
+    safeString(data.targetRole) ||
+    safeString(data.role) ||
+    "Professional";
+
+  return `${name}'s ${role} Resume`;
+}
+
+function normalizeProviderError(error) {
+  const message = String(error?.message || error || "");
+  const lower = message.toLowerCase();
+
   if (
-    typeof value !== "string"
+    error?.code === "GEMINI_QUOTA" ||
+    error?.status === 429 ||
+    lower.includes("quota") ||
+    lower.includes("rate limit") ||
+    lower.includes("resource exhausted")
   ) {
-    return fallback;
+    return {
+      status: 429,
+      code: "GEMINI_QUOTA",
+      message:
+        "Gemini API quota or rate limit has been reached.",
+    };
   }
 
-  return value.trim();
-};
+  if (
+    error?.code === "GEMINI_AUTH" ||
+    error?.status === 401 ||
+    lower.includes("api key") ||
+    lower.includes("unauthorized") ||
+    lower.includes("permission denied")
+  ) {
+    return {
+      status: 401,
+      code: "GEMINI_AUTH",
+      message:
+        "Gemini API authentication failed. Check the backend Gemini API configuration.",
+    };
+  }
+
+  if (
+    error?.code === "GEMINI_MODEL" ||
+    lower.includes("model not found") ||
+    lower.includes("not found")
+  ) {
+    return {
+      status: 502,
+      code: "GEMINI_MODEL",
+      message:
+        "The configured Gemini model is unavailable.",
+    };
+  }
+
+  if (
+    error?.code === "GEMINI_TIMEOUT" ||
+    lower.includes("timeout") ||
+    lower.includes("timed out")
+  ) {
+    return {
+      status: 504,
+      code: "GEMINI_TIMEOUT",
+      message:
+        "Gemini took too long to respond.",
+    };
+  }
+
+  return {
+    status: Number.isInteger(error?.status)
+      ? error.status
+      : 500,
+    code:
+      error?.code ||
+      "AI_GENERATION_FAILED",
+    message:
+      message ||
+      "The AI request failed.",
+  };
+}
+
+function requestJson(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      url,
+      {
+        method: options.method || "GET",
+        headers: options.headers || {},
+        family: options.family || 6,
+        timeout: options.timeout || 30000,
+      },
+      (response) => {
+        let body = "";
+
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        response.on("end", () => {
+          let parsed = null;
+
+          try {
+            parsed = JSON.parse(body);
+          } catch {
+            parsed = null;
+          }
+
+          if (
+            response.statusCode < 200 ||
+            response.statusCode >= 300
+          ) {
+            const error = new Error(
+              parsed?.display_name ||
+                parsed?.message ||
+                `HTTP ${response.statusCode}`
+            );
+            error.status = response.statusCode;
+            error.body = parsed || body;
+            return reject(error);
+          }
+
+          resolve(parsed || {});
+        });
+      }
+    );
+
+    request.on("timeout", () => {
+      request.destroy(
+        new Error("Adzuna request timed out.")
+      );
+    });
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function getAdzunaCredentials() {
+  const appId =
+    process.env.ADZUNA_APP_ID ||
+    process.env.ADZUNA_ID;
+
+  const appKey =
+    process.env.ADZUNA_APP_KEY ||
+    process.env.ADZUNA_KEY;
+
+  const country =
+    process.env.ADZUNA_COUNTRY ||
+    "in";
+
+  if (!appId || !appKey) {
+    throw new Error(
+      "Adzuna credentials are missing. Set ADZUNA_APP_ID and ADZUNA_APP_KEY in backend/.env."
+    );
+  }
+
+  return {
+    appId,
+    appKey,
+    country,
+  };
+}
+
+async function requestAdzuna(params = {}) {
+  const { appId, appKey, country } =
+    getAdzunaCredentials();
+
+  const page = Math.max(
+    1,
+    Number(params.page) || 1
+  );
+
+  const limit = Math.min(
+    50,
+    Math.max(1, Number(params.limit) || 20)
+  );
+
+  const query =
+    safeString(params.query) ||
+    safeString(params.role) ||
+    safeString(params.targetRole) ||
+    safeString(params.search) ||
+    safeString(params.title) ||
+    "software developer";
+
+  const where = safeString(params.location);
+
+  const search = new URLSearchParams();
+  search.set("app_id", appId);
+  search.set("app_key", appKey);
+  search.set("results_per_page", String(limit));
+  search.set("what", query);
+
+  if (where) search.set("where", where);
+
+  if (params.sort) {
+    const allowed = [
+      "relevance",
+      "date",
+      "salary",
+    ];
+
+    if (allowed.includes(params.sort)) {
+      search.set("sort_by", params.sort);
+    }
+  }
+
+  if (params.postedWithin) {
+    const days = Number(params.postedWithin);
+    if (Number.isFinite(days) && days > 0) {
+      search.set("max_days_old", String(days));
+    }
+  }
+
+  const fullTime =
+    params.jobType === "full_time" ||
+    params.jobType === "full-time";
+
+  const partTime =
+    params.jobType === "part_time" ||
+    params.jobType === "part-time";
+
+  const contract =
+    params.jobType === "contract";
+
+  const permanent =
+    params.jobType === "permanent";
+
+  if (fullTime) search.set("full_time", "1");
+  if (partTime) search.set("part_time", "1");
+  if (contract) search.set("contract", "1");
+  if (permanent) search.set("permanent", "1");
+
+  const url =
+    `https://api.adzuna.com/v1/api/jobs/${encodeURIComponent(country)}/search/${page}?${search.toString()}`;
+
+  return requestJson(url, {
+    family: 6,
+    timeout: 30000,
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "AI-Resume-Generator/1.0",
+    },
+  });
+}
+
+function normalizeJob(job = {}) {
+  const redirectUrl =
+    job.redirect_url ||
+    job.redirectUrl ||
+    job.url ||
+    "";
+
+  return {
+    id:
+      job.id != null
+        ? String(job.id)
+        : redirectUrl,
+
+    title:
+      safeString(job.title) ||
+      "Untitled job",
+
+    company:
+      safeString(job.company?.display_name) ||
+      safeString(job.company?.name) ||
+      "Company not specified",
+
+    location:
+      safeString(job.location?.display_name) ||
+      safeString(job.location?.area?.join?.(", ")) ||
+      "Location not specified",
+
+    description:
+      safeString(job.description),
+
+    url: redirectUrl,
+
+    salaryMin:
+      Number.isFinite(Number(job.salary_min))
+        ? Number(job.salary_min)
+        : null,
+
+    salaryMax:
+      Number.isFinite(Number(job.salary_max))
+        ? Number(job.salary_max)
+        : null,
+
+    salaryPeriod:
+      safeString(job.salary_is_predicted)
+        ? "predicted"
+        : "",
+
+    created:
+      job.created || null,
+
+    category:
+      safeString(job.category?.label) ||
+      safeString(job.category?.tag),
+
+    contractType:
+      safeString(job.contract_type),
+
+    contractTime:
+      safeString(job.contract_time),
+
+    provider: "Adzuna",
+  };
+}
 
 // ============================================================
 // IMPORT EXISTING RESUME PDF
@@ -131,54 +397,15 @@ router.post(
   upload.single("file"),
   async (req, res) => {
     try {
-      // --------------------------------------------------------
-      // CHECK FILE
-      // --------------------------------------------------------
-
       if (!req.file) {
         return res.status(400).json({
           success: false,
-          error:
-            "No resume file was uploaded.",
+          error: "No resume file was uploaded.",
         });
       }
 
-      const fileName =
-        req.file.originalname || "";
-
-      const mimeType =
-        req.file.mimetype || "";
-
-      if (
-        mimeType !==
-          "application/pdf" &&
-        !fileName
-          .toLowerCase()
-          .endsWith(".pdf")
-      ) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Please upload a PDF resume.",
-        });
-      }
-
-      console.log(
-        `📄 Reading resume PDF: ${fileName}`
-      );
-
-      // --------------------------------------------------------
-      // READ PDF TEXT
-      // --------------------------------------------------------
-
-      const pdf = await pdfParse(
-        req.file.buffer
-      );
-
-      const resumeText =
-        String(
-          pdf.text || ""
-        ).trim();
+      const pdf = await pdfParse(req.file.buffer);
+      const resumeText = String(pdf.text || "").trim();
 
       if (!resumeText) {
         return res.status(422).json({
@@ -188,50 +415,22 @@ router.post(
         });
       }
 
-      if (
-        resumeText.length < 50
-      ) {
+      if (resumeText.length < 50) {
         return res.status(422).json({
           success: false,
           error:
-            "The PDF contains too little readable text to analyze. Please upload your complete resume.",
+            "The PDF contains too little readable text to analyze.",
         });
       }
-
-      console.log(
-        `✅ Resume PDF read successfully: ${resumeText.length} characters`
-      );
-
-      // --------------------------------------------------------
-      // ASK GEMINI TO STRUCTURE THE RESUME
-      // --------------------------------------------------------
 
       const prompt = `
 You are a professional resume parser.
 
-Read the following resume text and extract the candidate's REAL
-information into the supplied JSON structure.
-
-IMPORTANT RULES:
-
-1. Extract information ONLY from the resume.
-2. NEVER invent information.
-3. Do not create fake companies.
-4. Do not create fake colleges.
-5. Do not create fake job titles.
-6. Do not create fake dates.
-7. Do not create fake skills.
-8. Preserve the candidate's actual education.
-9. Preserve the candidate's actual employment/internship experience.
-10. Preserve actual projects.
-11. Preserve actual certifications.
-12. Preserve actual achievements.
-13. Extract contact information exactly when available.
-14. If a field is not present, return an empty string or empty array.
-15. Do not infer personal information that is not present.
-16. Return ONLY valid JSON.
-17. Do not return Markdown.
-18. Do not explain anything.
+Extract only information actually present in this resume.
+Never invent companies, education, jobs, dates, skills, projects,
+certifications, achievements or contact information.
+If something is missing, return an empty string or empty array.
+Return ONLY valid JSON.
 
 RESUME TEXT:
 ------------------------
@@ -244,37 +443,17 @@ ${resumeText.slice(0, 60000)}
           prompt,
           {
             type: "object",
-
             properties: {
-              name: {
-                type: "string",
-              },
-
+              name: { type: "string" },
               contact: {
                 type: "object",
-
                 properties: {
-                  email: {
-                    type: "string",
-                  },
-
-                  phone: {
-                    type: "string",
-                  },
-
-                  location: {
-                    type: "string",
-                  },
-
-                  linkedin: {
-                    type: "string",
-                  },
-
-                  github: {
-                    type: "string",
-                  },
+                  email: { type: "string" },
+                  phone: { type: "string" },
+                  location: { type: "string" },
+                  linkedin: { type: "string" },
+                  github: { type: "string" },
                 },
-
                 required: [
                   "email",
                   "phone",
@@ -283,51 +462,25 @@ ${resumeText.slice(0, 60000)}
                   "github",
                 ],
               },
-
-              targetRole: {
-                type: "string",
-              },
-
-              summary: {
-                type: "string",
-              },
-
+              targetRole: { type: "string" },
+              summary: { type: "string" },
               skills: {
                 type: "array",
-
-                items: {
-                  type: "string",
-                },
+                items: { type: "string" },
               },
-
               experience: {
                 type: "array",
-
                 items: {
                   type: "object",
-
                   properties: {
-                    company: {
-                      type: "string",
-                    },
-
-                    role: {
-                      type: "string",
-                    },
-
-                    duration: {
-                      type: "string",
-                    },
-
+                    company: { type: "string" },
+                    role: { type: "string" },
+                    duration: { type: "string" },
                     bullets: {
                       type: "array",
-
-                      items: {
-                        type: "string",
-                      },
+                      items: { type: "string" },
                     },
                   },
-
                   required: [
                     "company",
                     "role",
@@ -336,31 +489,18 @@ ${resumeText.slice(0, 60000)}
                   ],
                 },
               },
-
               projects: {
                 type: "array",
-
                 items: {
                   type: "object",
-
                   properties: {
-                    name: {
-                      type: "string",
-                    },
-
-                    description: {
-                      type: "string",
-                    },
-
+                    name: { type: "string" },
+                    description: { type: "string" },
                     technologies: {
                       type: "array",
-
-                      items: {
-                        type: "string",
-                      },
+                      items: { type: "string" },
                     },
                   },
-
                   required: [
                     "name",
                     "description",
@@ -368,27 +508,15 @@ ${resumeText.slice(0, 60000)}
                   ],
                 },
               },
-
               education: {
                 type: "array",
-
                 items: {
                   type: "object",
-
                   properties: {
-                    institution: {
-                      type: "string",
-                    },
-
-                    degree: {
-                      type: "string",
-                    },
-
-                    duration: {
-                      type: "string",
-                    },
+                    institution: { type: "string" },
+                    degree: { type: "string" },
+                    duration: { type: "string" },
                   },
-
                   required: [
                     "institution",
                     "degree",
@@ -396,24 +524,15 @@ ${resumeText.slice(0, 60000)}
                   ],
                 },
               },
-
               certifications: {
                 type: "array",
-
-                items: {
-                  type: "string",
-                },
+                items: { type: "string" },
               },
-
               achievements: {
                 type: "array",
-
-                items: {
-                  type: "string",
-                },
+                items: { type: "string" },
               },
             },
-
             required: [
               "name",
               "contact",
@@ -433,75 +552,163 @@ ${resumeText.slice(0, 60000)}
           }
         );
 
-      // --------------------------------------------------------
-      // RETURN STRUCTURED RESUME
-      // --------------------------------------------------------
-
       return res.json({
         success: true,
-
         resume: parsedResume,
-
         text: resumeText,
-
-        fileName,
+        fileName: req.file.originalname || "resume.pdf",
       });
-
     } catch (error) {
       console.error(
         "❌ Resume PDF Import Error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
+      const provider = normalizeProviderError(error);
 
-        error:
-          error?.message ||
-          "Failed to read and import resume.",
+      return res.status(provider.status).json({
+        success: false,
+        code: provider.code,
+        error: provider.message,
+        message: provider.message,
       });
     }
   }
 );
 
 // ============================================================
-// AI RESUME GENERATION
+// AI RESUME GENERATION + MONGODB SAVE
 // ============================================================
 
 router.post(
   "/generate",
   async (req, res) => {
     try {
-      const { data } = req.body;
+      const {
+        data,
+        resumeId = null,
+      } = req.body || {};
 
-      if (!data) {
-        return res.status(400).json({
+      if (!req.userId) {
+        return res.status(401).json({
           success: false,
-          error:
-            "Missing resume data",
+          code: "AUTH_REQUIRED",
+          message:
+            "Please log in before generating or saving a resume.",
         });
       }
 
-      const resume =
+      if (!data || typeof data !== "object") {
+        return res.status(400).json({
+          success: false,
+          code: "INVALID_RESUME_DATA",
+          message: "Missing or invalid resume data.",
+        });
+      }
+
+      console.log(
+        "📝 AI Resume generation started for:",
+        data.fullName || "Unknown candidate"
+      );
+
+      const generatedResume =
         await callGemini(data);
 
-      return res.json({
-        success: true,
-        resume,
+      if (
+        !generatedResume ||
+        typeof generatedResume !== "object"
+      ) {
+        return res.status(502).json({
+          success: false,
+          code: "INVALID_AI_RESPONSE",
+          message:
+            "Gemini returned an invalid resume response.",
+        });
+      }
+
+      const title = normalizeResumeTitle({
+        ...data,
+        ...generatedResume,
       });
 
+      const templateId =
+        safeString(data.templateId) ||
+        safeString(data.template) ||
+        "simple-ats";
+
+      const resumeData = {
+        ...generatedResume,
+        templateId,
+        template: templateId,
+      };
+
+      let savedResume;
+
+      if (resumeId) {
+        savedResume =
+          await Resume.findOneAndUpdate(
+            {
+              _id: resumeId,
+              userId: req.userId,
+            },
+            {
+              $set: {
+                title,
+                templateId,
+                data: resumeData,
+              },
+            },
+            {
+              new: true,
+              runValidators: true,
+            }
+          );
+
+        if (!savedResume) {
+          return res.status(404).json({
+            success: false,
+            code: "RESUME_NOT_FOUND",
+            message:
+              "Resume not found or you do not have permission to edit it.",
+          });
+        }
+
+        console.log(
+          "✅ Resume updated in MongoDB:",
+          savedResume._id.toString()
+        );
+      } else {
+        savedResume = await Resume.create({
+          userId: req.userId,
+          title,
+          templateId,
+          data: resumeData,
+        });
+
+        console.log(
+          "✅ New resume saved in MongoDB:",
+          savedResume._id.toString()
+        );
+      }
+
+      return res.status(resumeId ? 200 : 201).json({
+        success: true,
+        resume: savedResume.data,
+        resumeId: savedResume._id,
+        savedResume,
+      });
     } catch (error) {
       console.error(
         "❌ AI Resume Error:",
-        error.message
+        error
       );
 
-      return res.status(500).json({
-        success: false,
+      const provider = normalizeProviderError(error);
 
-        error:
-          error.message ||
-          "AI resume generation failed",
+      return res.status(provider.status).json({
+        success: false,
+        code: provider.code,
+        message: provider.message,
       });
     }
   }
@@ -515,27 +722,31 @@ router.post(
   "/suggestions",
   async (req, res) => {
     try {
+      if (typeof generateSuggestions !== "function") {
+        return res.status(501).json({
+          success: false,
+          message:
+            "AI suggestions are not configured in gemini.js.",
+        });
+      }
+
       const suggestions =
-        await generateSuggestions(
-          req.body || {}
-        );
+        await generateSuggestions(req.body || {});
 
       return res.json({
         success: true,
         suggestions,
       });
-
     } catch (error) {
       console.error(
         "❌ AI Suggestions Error:",
-        error.message
+        error
       );
 
       return res.status(500).json({
         success: false,
-
         error:
-          error.message ||
+          error?.message ||
           "AI suggestions failed",
       });
     }
@@ -550,27 +761,45 @@ router.post(
   "/mock-interview/start",
   async (req, res) => {
     try {
-      const interview =
-        await generateMockInterview(
-          req.body || {}
+      const prompt = `
+Create a realistic mock interview for this candidate.
+Return ONLY JSON.
+Generate 5 concise questions suitable for the target role.
+
+Candidate:
+${JSON.stringify(req.body || {}).slice(0, 30000)}
+`;
+
+      const result =
+        await generateGeminiJSON(
+          prompt,
+          {
+            type: "object",
+            properties: {
+              questions: {
+                type: "array",
+                items: { type: "string" },
+              },
+            },
+            required: ["questions"],
+          },
+          { temperature: 0.4, timeout: 60000 }
         );
 
       return res.json({
         success: true,
-        interview,
+        interview: result,
       });
-
     } catch (error) {
       console.error(
         "❌ Mock Interview Error:",
-        error.message
+        error
       );
 
       return res.status(500).json({
         success: false,
-
         error:
-          error.message ||
+          error?.message ||
           "Mock interview generation failed",
       });
     }
@@ -585,48 +814,69 @@ router.post(
   "/mock-interview/evaluate",
   async (req, res) => {
     try {
-      const {
-        question,
-        answer,
-      } = req.body;
+      const { question, answer } =
+        req.body || {};
 
-      if (!question) {
+      if (!question || !answer) {
         return res.status(400).json({
           success: false,
           error:
-            "Missing interview question",
+            "Both interview question and candidate answer are required.",
         });
       }
 
-      if (!answer) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Missing candidate answer",
-        });
-      }
+      const prompt = `
+Evaluate this interview answer.
+Return ONLY JSON.
 
-      const evaluation =
-        await evaluateInterviewAnswer(
-          req.body
+QUESTION:
+${question}
+
+ANSWER:
+${answer}
+`;
+
+      const result =
+        await generateGeminiJSON(
+          prompt,
+          {
+            type: "object",
+            properties: {
+              score: { type: "number" },
+              feedback: { type: "string" },
+              strengths: {
+                type: "array",
+                items: { type: "string" },
+              },
+              improvements: {
+                type: "array",
+                items: { type: "string" },
+              },
+            },
+            required: [
+              "score",
+              "feedback",
+              "strengths",
+              "improvements",
+            ],
+          },
+          { temperature: 0.2, timeout: 60000 }
         );
 
       return res.json({
         success: true,
-        evaluation,
+        evaluation: result,
       });
-
     } catch (error) {
       console.error(
         "❌ Interview Evaluation Error:",
-        error.message
+        error
       );
 
       return res.status(500).json({
         success: false,
-
         error:
-          error.message ||
+          error?.message ||
           "Interview evaluation failed",
       });
     }
@@ -645,434 +895,139 @@ router.post(
         targetRole,
         jobDescription,
         resume,
-      } = req.body;
+      } = req.body || {};
 
-      // --------------------------------------------------------
-      // VALIDATION
-      // --------------------------------------------------------
-
-      if (!targetRole?.trim()) {
+      if (!safeString(targetRole)) {
         return res.status(400).json({
           success: false,
-          message:
-            "Target job title is required.",
+          message: "Target job title is required.",
         });
       }
 
-      if (!jobDescription?.trim()) {
+      if (!safeString(jobDescription)) {
         return res.status(400).json({
           success: false,
-          message:
-            "Job description is required.",
+          message: "Job description is required.",
         });
       }
 
-      if (!resume?.trim()) {
+      if (!safeString(resume)) {
         return res.status(400).json({
           success: false,
-          message:
-            "Resume content is required.",
+          message: "Resume content is required.",
         });
       }
-
-      if (
-        jobDescription.trim()
-          .length < 100
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "The job description is too short. Please provide the complete job description.",
-        });
-      }
-
-      if (
-        resume.trim().length <
-        100
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "The resume content is too short. Please provide the complete resume.",
-        });
-      }
-
-      console.log(
-        `🔎 Job Match started for: ${targetRole}`
-      );
-
-      // --------------------------------------------------------
-      // GEMINI PROMPT
-      // --------------------------------------------------------
 
       const prompt = `
-You are an expert recruitment, ATS and career-analysis assistant.
-
-Your task is to compare a candidate's resume against a specific
-job description and provide a realistic, useful and evidence-based
-job-match analysis.
+Compare the candidate resume with the job description.
+Return ONLY valid JSON.
+Do not invent candidate experience or skills.
 
 TARGET ROLE:
 ${targetRole}
 
 JOB DESCRIPTION:
-------------------------
 ${jobDescription.slice(0, 50000)}
-------------------------
 
-CANDIDATE RESUME:
-------------------------
+RESUME:
 ${resume.slice(0, 50000)}
-------------------------
-
-IMPORTANT RULES:
-
-1. Analyze ONLY information actually present in the resume.
-
-2. NEVER invent:
-   - skills
-   - experience
-   - projects
-   - certifications
-   - education
-   - achievements
-   - companies
-   - job titles
-   - qualifications
-
-3. Never recommend lying on a resume.
-
-4. Never recommend claiming a skill that the candidate does not
-   demonstrate.
-
-5. Distinguish between:
-   - required qualifications
-   - preferred qualifications
-   - nice-to-have qualifications
-
-6. Consider semantic matches, not only exact keyword matches.
-
-7. A related skill can count as a partial match when it is genuinely
-   relevant.
-
-8. Do not mark something as missing if the resume demonstrates an
-   equivalent or closely related capability.
-
-9. Do not give an artificially high score.
-
-10. Do not give an artificially low score.
-
-11. Consider:
-    - technical skills
-    - programming languages
-    - frameworks
-    - tools
-    - databases
-    - cloud technologies
-    - soft skills
-    - experience
-    - responsibilities
-    - projects
-    - education
-    - certifications
-    - achievements
-    - seniority
-    - job keywords
-
-12. Compare the candidate's experience level with the job's required
-    seniority.
-
-13. If the candidate lacks required experience, clearly explain it.
-
-14. If a requirement is missing, do not tell the candidate to falsely
-    add it to their resume.
-
-15. Instead, recommend:
-    - learning the skill
-    - gaining practical experience
-    - building a relevant project
-    - obtaining a certification when appropriate
-    - highlighting existing related experience
-
-16. Recommendations must be practical and prioritized.
-
-17. Only recommend adding something to the resume when it is supported
-    by the candidate's real experience.
-
-18. Identify important ATS keywords from the job description.
-
-19. Separate required keywords from preferred keywords.
-
-20. Interview topics must be based on the actual job description.
-
-21. The final summary should clearly tell the candidate whether they
-    appear to be a strong, moderate or weak candidate for the role.
-
-22. Keep the response concise, useful and actionable.
-
-SCORING GUIDELINES:
-
-Overall score:
-
-0-39:
-Poor match
-
-40-54:
-Weak / limited match
-
-55-69:
-Moderate match / good potential
-
-70-84:
-Strong match
-
-85-100:
-Excellent match
-
-BREAKDOWN:
-
-skills:
-How well the candidate's actual skills satisfy the role.
-
-experience:
-How well the candidate's actual experience and responsibilities
-match the role.
-
-education:
-How well education and certifications satisfy requirements.
-
-keywords:
-How well important job-description terminology is represented
-naturally in the resume.
-
-IMPORTANT:
-
-Do NOT simply count keywords.
-
-Evaluate the meaning and relevance of the resume.
-
-Return ONLY valid JSON.
 `;
-
-      // --------------------------------------------------------
-      // RESPONSE SCHEMA
-      // --------------------------------------------------------
-
-      const responseSchema = {
-        type: "object",
-
-        properties: {
-          score: {
-            type: "number",
-            description:
-              "Overall compatibility score from 0 to 100.",
-          },
-
-          summary: {
-            type: "string",
-            description:
-              "Short explanation of the candidate's overall fit.",
-          },
-
-          breakdown: {
-            type: "object",
-
-            properties: {
-              skills: {
-                type: "number",
-              },
-
-              experience: {
-                type: "number",
-              },
-
-              education: {
-                type: "number",
-              },
-
-              keywords: {
-                type: "number",
-              },
-            },
-
-            required: [
-              "skills",
-              "experience",
-              "education",
-              "keywords",
-            ],
-          },
-
-          matchedSkills: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-
-          missingSkills: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-
-          requiredKeywords: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-
-          preferredKeywords: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-
-          experienceGaps: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-
-          improvements: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-
-          interviewTopics: {
-            type: "array",
-            items: {
-              type: "string",
-            },
-          },
-        },
-
-        required: [
-          "score",
-          "summary",
-          "breakdown",
-          "matchedSkills",
-          "missingSkills",
-          "requiredKeywords",
-          "preferredKeywords",
-          "experienceGaps",
-          "improvements",
-          "interviewTopics",
-        ],
-      };
-
-      // --------------------------------------------------------
-      // CALL GEMINI
-      // --------------------------------------------------------
 
       const result =
         await generateGeminiJSON(
           prompt,
-          responseSchema,
           {
-            temperature: 0.2,
-            timeout: 90000,
-          }
+            type: "object",
+            properties: {
+              score: { type: "number" },
+              summary: { type: "string" },
+              breakdown: {
+                type: "object",
+                properties: {
+                  skills: { type: "number" },
+                  experience: { type: "number" },
+                  education: { type: "number" },
+                  keywords: { type: "number" },
+                },
+                required: [
+                  "skills",
+                  "experience",
+                  "education",
+                  "keywords",
+                ],
+              },
+              matchedSkills: {
+                type: "array",
+                items: { type: "string" },
+              },
+              missingSkills: {
+                type: "array",
+                items: { type: "string" },
+              },
+              requiredKeywords: {
+                type: "array",
+                items: { type: "string" },
+              },
+              preferredKeywords: {
+                type: "array",
+                items: { type: "string" },
+              },
+              experienceGaps: {
+                type: "array",
+                items: { type: "string" },
+              },
+              improvements: {
+                type: "array",
+                items: { type: "string" },
+              },
+              interviewTopics: {
+                type: "array",
+                items: { type: "string" },
+              },
+            },
+            required: [
+              "score",
+              "summary",
+              "breakdown",
+              "matchedSkills",
+              "missingSkills",
+              "requiredKeywords",
+              "preferredKeywords",
+              "experienceGaps",
+              "improvements",
+              "interviewTopics",
+            ],
+          },
+          { temperature: 0.2, timeout: 90000 }
         );
 
-      // --------------------------------------------------------
-      // NORMALIZE RESULT
-      // --------------------------------------------------------
-
-      const response = {
+      return res.json({
         success: true,
-
-        score: safeNumber(
-          result?.score
-        ),
-
-        summary: safeString(
-          result?.summary
-        ),
-
+        score: safeNumber(result?.score),
+        summary: safeString(result?.summary),
         breakdown: {
-          skills: safeNumber(
-            result?.breakdown?.skills
-          ),
-
-          experience: safeNumber(
-            result?.breakdown?.experience
-          ),
-
-          education: safeNumber(
-            result?.breakdown?.education
-          ),
-
-          keywords: safeNumber(
-            result?.breakdown?.keywords
-          ),
+          skills: safeNumber(result?.breakdown?.skills),
+          experience: safeNumber(result?.breakdown?.experience),
+          education: safeNumber(result?.breakdown?.education),
+          keywords: safeNumber(result?.breakdown?.keywords),
         },
-
-        matchedSkills:
-          safeArray(
-            result?.matchedSkills
-          ),
-
-        missingSkills:
-          safeArray(
-            result?.missingSkills
-          ),
-
-        requiredKeywords:
-          safeArray(
-            result?.requiredKeywords
-          ),
-
-        preferredKeywords:
-          safeArray(
-            result?.preferredKeywords
-          ),
-
-        experienceGaps:
-          safeArray(
-            result?.experienceGaps
-          ),
-
-        improvements:
-          safeArray(
-            result?.improvements
-          ),
-
-        interviewTopics:
-          safeArray(
-            result?.interviewTopics
-          ),
-      };
-
-      console.log(
-        `✅ Job Match completed: ${response.score}%`
-      );
-
-      return res.json(
-        response
-      );
-
+        matchedSkills: safeArray(result?.matchedSkills),
+        missingSkills: safeArray(result?.missingSkills),
+        requiredKeywords: safeArray(result?.requiredKeywords),
+        preferredKeywords: safeArray(result?.preferredKeywords),
+        experienceGaps: safeArray(result?.experienceGaps),
+        improvements: safeArray(result?.improvements),
+        interviewTopics: safeArray(result?.interviewTopics),
+      });
     } catch (error) {
-      console.error(
-        "❌ Job Match Error:",
-        error
-      );
+      console.error("❌ Job Match Error:", error);
 
       return res.status(500).json({
         success: false,
-
         message:
           "Unable to analyze the job match right now.",
-
         error:
-          process.env.NODE_ENV ===
-          "development"
+          process.env.NODE_ENV === "development"
             ? error?.message
             : undefined,
       });
@@ -1086,52 +1041,40 @@ Return ONLY valid JSON.
 
 router.post(
   "/ats",
-  atsUpload.single("file"),
+  atsUpload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "resume", maxCount: 1 },
+  ]),
   async (req, res) => {
     try {
-      // --------------------------------------------------------
-      // CHECK FILE
-      // --------------------------------------------------------
+      const file =
+        req.files?.file?.[0] ||
+        req.files?.resume?.[0];
 
-      if (!req.file) {
+      if (!file) {
         return res.status(400).json({
           success: false,
-          message:
-            "Please upload a resume file.",
+          message: "Please upload a resume file.",
         });
       }
 
       const fileName =
-        req.file.originalname || "";
-
-      const lowerFileName =
+        file.originalname || "";
+      const lowerName =
         fileName.toLowerCase();
-
-      const mimeType =
-        req.file.mimetype || "";
-
-      console.log(
-        `📊 ATS analysis started for: ${fileName}`
-      );
-
-      // --------------------------------------------------------
-      // VALIDATE FILE TYPE
-      // --------------------------------------------------------
+      const mime =
+        String(file.mimetype || "").toLowerCase();
 
       const isPDF =
-        mimeType ===
-          "application/pdf" ||
-        lowerFileName.endsWith(".pdf");
+        mime === "application/pdf" ||
+        lowerName.endsWith(".pdf");
 
       const isDOCX =
-        mimeType ===
+        mime ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-        lowerFileName.endsWith(".docx");
+        lowerName.endsWith(".docx");
 
-      const isDOC =
-        lowerFileName.endsWith(".doc");
-
-      if (!isPDF && !isDOCX && !isDOC) {
+      if (!isPDF && !isDOCX) {
         return res.status(400).json({
           success: false,
           message:
@@ -1139,80 +1082,22 @@ router.post(
         });
       }
 
-      // --------------------------------------------------------
-      // LEGACY DOC
-      // --------------------------------------------------------
-
-      if (isDOC) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Legacy .doc files are not supported yet. Please save the resume as PDF or DOCX and upload it again.",
-        });
-      }
-
-      // --------------------------------------------------------
-      // EXTRACT RESUME TEXT
-      // --------------------------------------------------------
-
       let resumeText = "";
 
-      // --------------------------------------------------------
-      // PDF
-      // --------------------------------------------------------
-
       if (isPDF) {
-        console.log(
-          "📄 Extracting text from PDF..."
-        );
-
-        const pdf =
-          await pdfParse(
-            req.file.buffer
-          );
-
-        resumeText =
-          String(
-            pdf.text || ""
-          ).trim();
-      }
-
-      // --------------------------------------------------------
-      // DOCX
-      // --------------------------------------------------------
-
-      if (isDOCX) {
-        console.log(
-          "📝 Extracting text from DOCX..."
-        );
-
-        const result =
+        const pdf = await pdfParse(file.buffer);
+        resumeText = String(pdf.text || "").trim();
+      } else {
+        const extracted =
           await mammoth.extractRawText({
-            buffer:
-              req.file.buffer,
+            buffer: file.buffer,
           });
-
-        resumeText =
-          String(
-            result.value || ""
-          ).trim();
+        resumeText = String(
+          extracted.value || ""
+        ).trim();
       }
 
-      // --------------------------------------------------------
-      // VALIDATE EXTRACTED TEXT
-      // --------------------------------------------------------
-
-      if (!resumeText) {
-        return res.status(422).json({
-          success: false,
-          message:
-            "Could not extract readable text from this resume. Please upload a text-based PDF or DOCX file.",
-        });
-      }
-
-      if (
-        resumeText.length < 50
-      ) {
+      if (resumeText.length < 50) {
         return res.status(422).json({
           success: false,
           message:
@@ -1220,308 +1105,500 @@ router.post(
         });
       }
 
-      // Limit prompt size
-      resumeText =
-        resumeText.slice(
-          0,
-          50000
-        );
-
-      console.log(
-        `✅ Resume text extracted: ${resumeText.length} characters`
-      );
-
-      // --------------------------------------------------------
-      // ATS PROMPT
-      // --------------------------------------------------------
-
       const prompt = `
-You are an expert Applicant Tracking System (ATS), professional
-recruiter and resume evaluator.
-
-Analyze the candidate's resume below and produce a realistic ATS
-compatibility report.
+You are an expert ATS resume evaluator.
+Analyze ONLY the information present in the resume.
+Return ONLY valid JSON.
 
 RESUME:
---------------------------------
-${resumeText}
---------------------------------
-
-IMPORTANT RULES:
-
-1. Analyze ONLY information present in the resume.
-
-2. NEVER invent:
-   - skills
-   - experience
-   - companies
-   - job titles
-   - education
-   - certifications
-   - projects
-   - achievements
-   - contact information
-
-3. Do not assume that the candidate has a skill simply because it is
-   common for their job.
-
-4. Evaluate the resume as an ATS would, while also considering human
-   recruiter quality.
-
-5. Score the resume from 0 to 100.
-
-6. Consider:
-
-   - Contact information
-   - Professional summary
-   - Skills
-   - Work experience
-   - Internship experience
-   - Projects
-   - Education
-   - Certifications
-   - Achievements
-   - Keywords
-   - Readability
-   - Resume structure
-   - ATS-friendly formatting
-   - Quantifiable achievements
-   - Action verbs
-   - Relevance
-   - Consistency
-
-7. Do not punish a candidate simply because they are a student or
-   fresher.
-
-8. Do not assume missing experience is a formatting problem.
-
-9. Separate genuine weaknesses from things that are simply not
-   applicable.
-
-10. Identify important keywords that actually appear in the resume.
-
-11. Identify important keywords that appear to be missing from the
-    resume based on the resume's apparent target role.
-
-12. Missing keywords should be reasonable and relevant.
-
-13. Do not recommend adding a skill unless there is evidence that the
-    candidate may genuinely possess or be developing it.
-
-14. Never recommend lying.
-
-15. Suggestions must be practical and actionable.
-
-16. Evaluate formatting from the extracted text. Since you cannot see
-    the original visual document, do not make claims about exact font,
-    colors, spacing or visual design.
-
-17. A resume can score well even if the candidate has limited work
-    experience when their education, projects and skills are strong.
-
-18. Contact score should consider whether useful contact information
-    is present.
-
-19. Content score should consider the strength and completeness of
-    the actual resume content.
-
-20. Keyword score should consider relevance and presence of useful
-    job-related terminology.
-
-21. Formatting score should focus only on ATS-friendly text structure
-    that can be inferred from the extracted document.
-
-22. Return ONLY valid JSON.
-
-23. Do not return Markdown.
-
-24. Do not explain anything outside the JSON.
-
-SCORING GUIDELINES:
-
-90-100:
-Excellent ATS readiness.
-
-80-89:
-Very strong ATS readiness.
-
-70-79:
-Good ATS readiness with some improvements needed.
-
-60-69:
-Average ATS readiness.
-
-40-59:
-Weak ATS readiness.
-
-0-39:
-Poor ATS readiness.
-
-SECTION STATUS:
-
-For each major section, return:
-- "good"
-- "needs-improvement"
-- "missing"
-
-Evaluate:
-
-- Contact
-- Summary
-- Skills
-- Experience
-- Projects
-- Education
-- Certifications
-
-Provide concise suggestions for improvement.
-
-Return the final result according to the supplied JSON schema.
+${resumeText.slice(0, 50000)}
 `;
 
-      // --------------------------------------------------------
-      // ATS RESPONSE SCHEMA
-      // --------------------------------------------------------
+      const result =
+        await generateGeminiJSON(
+          prompt,
+          {
+            type: "object",
+            properties: {
+              score: { type: "number" },
+              summary: { type: "string" },
+              keywordScore: { type: "number" },
+              contentScore: { type: "number" },
+              formatting: { type: "number" },
+              contactScore: { type: "number" },
+              keywords: {
+                type: "array",
+                items: { type: "string" },
+              },
+              missingKeywords: {
+                type: "array",
+                items: { type: "string" },
+              },
+              suggestions: {
+                type: "array",
+                items: { type: "string" },
+              },
+              sections: {
+                type: "object",
+                properties: {
+                  contact: { type: "string" },
+                  summary: { type: "string" },
+                  skills: { type: "string" },
+                  experience: { type: "string" },
+                  projects: { type: "string" },
+                  education: { type: "string" },
+                  certifications: { type: "string" },
+                },
+                required: [
+                  "contact",
+                  "summary",
+                  "skills",
+                  "experience",
+                  "projects",
+                  "education",
+                  "certifications",
+                ],
+              },
+            },
+            required: [
+              "score",
+              "summary",
+              "keywordScore",
+              "contentScore",
+              "formatting",
+              "contactScore",
+              "keywords",
+              "missingKeywords",
+              "suggestions",
+              "sections",
+            ],
+          },
+          { temperature: 0.15, timeout: 90000 }
+        );
+
+      const resultData = {
+        score: safeNumber(result?.score),
+        summary: safeString(result?.summary),
+        keywordScore: safeNumber(result?.keywordScore),
+        contentScore: safeNumber(result?.contentScore),
+        formatting: safeNumber(result?.formatting),
+        contactScore: safeNumber(result?.contactScore),
+        keywords: safeArray(result?.keywords),
+        missingKeywords: safeArray(result?.missingKeywords),
+        suggestions: safeArray(result?.suggestions),
+        sections: {
+          contact: safeString(result?.sections?.contact),
+          summary: safeString(result?.sections?.summary),
+          skills: safeString(result?.sections?.skills),
+          experience: safeString(result?.sections?.experience),
+          projects: safeString(result?.sections?.projects),
+          education: safeString(result?.sections?.education),
+          certifications: safeString(result?.sections?.certifications),
+        },
+      };
+
+      return res.json({
+        success: true,
+        result: resultData,
+        fileName,
+        fileType: isPDF ? "pdf" : "docx",
+      });
+    } catch (error) {
+      console.error("❌ ATS Analysis Error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error?.message ||
+          "Unable to analyze the resume right now.",
+      });
+    }
+  }
+);
+
+// ============================================================
+// SKILL GAP ANALYSIS
+// ============================================================
+
+const skillGapUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const name = String(file?.originalname || "").toLowerCase();
+    const mime = String(file?.mimetype || "").toLowerCase();
+
+    const isPDF =
+      mime === "application/pdf" ||
+      name.endsWith(".pdf");
+
+    const isDOCX =
+      mime ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      name.endsWith(".docx");
+
+    const isTXT =
+      mime === "text/plain" ||
+      name.endsWith(".txt");
+
+    if (isPDF || isDOCX || isTXT) {
+      return cb(null, true);
+    }
+
+    return cb(
+      new Error(
+        "Only PDF, DOCX or TXT resume files are supported."
+      )
+    );
+  },
+});
+
+router.post(
+  "/skill-gap",
+  skillGapUpload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({
+          success: false,
+          code: "AUTH_REQUIRED",
+          message:
+            "Please log in before using Skill Gap Analysis.",
+        });
+      }
+
+      const targetRole = safeString(req.body?.targetRole);
+      const experienceLevel = safeString(
+        req.body?.experienceLevel,
+        "Student / Fresher"
+      );
+      const pastedResumeText = safeString(req.body?.resumeText);
+      const resumeId = safeString(req.body?.resumeId);
+
+      if (!targetRole) {
+        return res.status(400).json({
+          success: false,
+          code: "TARGET_ROLE_REQUIRED",
+          message: "Please enter your target role.",
+        });
+      }
+
+      let resumeText = "";
+      let sourceType = "text";
+      let fileName = "";
+
+      if (req.file) {
+        fileName = safeString(
+          req.file.originalname,
+          "resume"
+        );
+
+        console.log("");
+        console.log(
+          "=================================================="
+        );
+        console.log("📊 SKILL GAP ANALYSIS");
+        console.log(
+          "=================================================="
+        );
+        console.log("👤 User ID:", req.userId);
+        console.log("🎯 Target role:", targetRole);
+        console.log("📄 File:", fileName);
+        console.log("📦 Type:", req.file.mimetype);
+        console.log(
+          "📦 Size:",
+          req.file.size,
+          "bytes"
+        );
+
+        const lowerName =
+          fileName.toLowerCase();
+
+        try {
+          if (
+            req.file.mimetype ===
+              "application/pdf" ||
+            lowerName.endsWith(".pdf")
+          ) {
+            const pdf =
+              await pdfParse(req.file.buffer);
+
+            resumeText = String(
+              pdf?.text || ""
+            ).trim();
+
+            sourceType = "pdf";
+          } else if (
+            req.file.mimetype ===
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+            lowerName.endsWith(".docx")
+          ) {
+            const extracted =
+              await mammoth.extractRawText({
+                buffer: req.file.buffer,
+              });
+
+            resumeText = String(
+              extracted?.value || ""
+            ).trim();
+
+            sourceType = "docx";
+          } else {
+            resumeText =
+              req.file.buffer
+                .toString("utf8")
+                .trim();
+
+            sourceType = "txt";
+          }
+        } catch (extractError) {
+          console.error(
+            "❌ Skill gap resume extraction failed:",
+            extractError
+          );
+
+          return res.status(422).json({
+            success: false,
+            code: "RESUME_EXTRACTION_FAILED",
+            message:
+              "We couldn't read this resume. Please upload a readable PDF, DOCX, or TXT file.",
+          });
+        }
+      } else {
+        resumeText = pastedResumeText;
+        sourceType = "text";
+      }
+
+      resumeText = String(
+        resumeText || ""
+      )
+        .replace(/\u0000/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+      if (resumeText.length < 50) {
+        return res.status(422).json({
+          success: false,
+          code: "RESUME_TEXT_TOO_SHORT",
+          message:
+            "Please upload a resume or paste at least 50 characters of readable resume text.",
+        });
+      }
+
+      console.log(
+        "📝 Resume text:",
+        resumeText.length,
+        "characters"
+      );
+
+      const prompt = `
+You are an expert career advisor, technical recruiter,
+and skills-gap analyst.
+
+Analyze the candidate's resume against the target career role.
+
+TARGET ROLE:
+${targetRole}
+
+EXPERIENCE LEVEL:
+${experienceLevel}
+
+CANDIDATE RESUME:
+--------------------------------
+${resumeText.slice(0, 50000)}
+--------------------------------
+
+Identify:
+1. Skills the candidate already demonstrates.
+2. Important skills required for the target role.
+3. Skills that are missing or insufficiently demonstrated.
+4. The candidate's current level for each important skill.
+5. The target level expected for the role.
+6. The gap between current and target level.
+7. Priority of each missing skill.
+8. Why each missing skill matters.
+9. A practical next action for each gap.
+10. A practical learning roadmap.
+
+IMPORTANT RULES:
+- Analyze ONLY information supported by the resume.
+- Never invent experience, projects, certifications, or skills.
+- If a skill is not demonstrated, treat it as missing or unknown.
+- Consider the candidate's experience level.
+- Make realistic recommendations.
+- Do not recommend lying on a resume.
+- Do not recommend unnecessary skills.
+- Priorities must be High, Medium, or Low.
+- Readiness score must be between 0 and 100.
+- Return ONLY valid JSON.
+`;
 
       const responseSchema = {
         type: "object",
-
         properties: {
-          score: {
+          readinessScore: {
             type: "number",
-            description:
-              "Overall ATS score from 0 to 100.",
           },
 
           summary: {
             type: "string",
-            description:
-              "Short overall ATS assessment.",
           },
 
-          keywordScore: {
-            type: "number",
-            description:
-              "Keyword effectiveness score from 0 to 100.",
-          },
-
-          contentScore: {
-            type: "number",
-            description:
-              "Resume content quality score from 0 to 100.",
-          },
-
-          formatting: {
-            type: "number",
-            description:
-              "ATS-friendly text structure score from 0 to 100.",
-          },
-
-          contactScore: {
-            type: "number",
-            description:
-              "Contact information completeness score from 0 to 100.",
-          },
-
-          keywords: {
+          matchedSkills: {
             type: "array",
-
             items: {
-              type: "string",
-            },
+              type: "object",
+              properties: {
+                skill: {
+                  type: "string",
+                },
 
-            description:
-              "Important keywords detected in the resume.",
+                currentLevel: {
+                  type: "string",
+                },
+
+                targetLevel: {
+                  type: "string",
+                },
+
+                evidence: {
+                  type: "string",
+                },
+              },
+
+              required: [
+                "skill",
+                "currentLevel",
+                "targetLevel",
+                "evidence",
+              ],
+            },
           },
 
-          missingKeywords: {
+          missingSkills: {
             type: "array",
-
             items: {
-              type: "string",
-            },
+              type: "object",
+              properties: {
+                skill: {
+                  type: "string",
+                },
 
-            description:
-              "Relevant keywords that appear to be missing.",
+                currentLevel: {
+                  type: "string",
+                },
+
+                targetLevel: {
+                  type: "string",
+                },
+
+                priority: {
+                  type: "string",
+                },
+
+                why: {
+                  type: "string",
+                },
+
+                action: {
+                  type: "string",
+                },
+              },
+
+              required: [
+                "skill",
+                "currentLevel",
+                "targetLevel",
+                "priority",
+                "why",
+                "action",
+              ],
+            },
           },
 
-          suggestions: {
+          levelComparison: {
             type: "array",
-
             items: {
-              type: "string",
-            },
+              type: "object",
+              properties: {
+                skill: {
+                  type: "string",
+                },
 
-            description:
-              "Practical resume improvement suggestions.",
+                currentLevel: {
+                  type: "string",
+                },
+
+                targetLevel: {
+                  type: "string",
+                },
+
+                gap: {
+                  type: "string",
+                },
+              },
+
+              required: [
+                "skill",
+                "currentLevel",
+                "targetLevel",
+                "gap",
+              ],
+            },
           },
 
-          sections: {
-            type: "object",
+          learningRoadmap: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                phase: {
+                  type: "string",
+                },
 
-            properties: {
-              contact: {
-                type: "string",
+                title: {
+                  type: "string",
+                },
+
+                duration: {
+                  type: "string",
+                },
+
+                skills: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                  },
+                },
+
+                actions: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                  },
+                },
               },
 
-              summary: {
-                type: "string",
-              },
-
-              skills: {
-                type: "string",
-              },
-
-              experience: {
-                type: "string",
-              },
-
-              projects: {
-                type: "string",
-              },
-
-              education: {
-                type: "string",
-              },
-
-              certifications: {
-                type: "string",
-              },
+              required: [
+                "phase",
+                "title",
+                "duration",
+                "skills",
+                "actions",
+              ],
             },
-
-            required: [
-              "contact",
-              "summary",
-              "skills",
-              "experience",
-              "projects",
-              "education",
-              "certifications",
-            ],
           },
         },
 
         required: [
-          "score",
+          "readinessScore",
           "summary",
-          "keywordScore",
-          "contentScore",
-          "formatting",
-          "contactScore",
-          "keywords",
-          "missingKeywords",
-          "suggestions",
-          "sections",
+          "matchedSkills",
+          "missingSkills",
+          "levelComparison",
+          "learningRoadmap",
         ],
       };
-
-      // --------------------------------------------------------
-      // CALL GEMINI
-      // --------------------------------------------------------
-
-      console.log(
-        "🤖 Sending resume to Gemini for ATS analysis..."
-      );
 
       const result =
         await generateGeminiJSON(
@@ -1533,157 +1610,494 @@ Return the final result according to the supplied JSON schema.
           }
         );
 
-      // --------------------------------------------------------
-      // NORMALIZE ATS RESULT
-      // --------------------------------------------------------
-
-      const atsResult = {
-        score: safeNumber(
-          result?.score
-        ),
-
-        summary: safeString(
-          result?.summary
-        ),
-
-        keywordScore:
+      const analysis = {
+        readinessScore:
           safeNumber(
-            result?.keywordScore
+            result?.readinessScore
           ),
 
-        contentScore:
-          safeNumber(
-            result?.contentScore
+        summary:
+          safeString(
+            result?.summary
           ),
 
-        formatting:
-          safeNumber(
-            result?.formatting
-          ),
+        matchedSkills:
+          Array.isArray(
+            result?.matchedSkills
+          )
+            ? result.matchedSkills
+                .slice(0, 30)
+                .map((item) => ({
+                  skill:
+                    safeString(
+                      item?.skill
+                    ),
 
-        contactScore:
-          safeNumber(
-            result?.contactScore
-          ),
+                  currentLevel:
+                    safeString(
+                      item?.currentLevel,
+                      "Known"
+                    ),
 
-        keywords:
-          safeArray(
-            result?.keywords
-          ),
+                  targetLevel:
+                    safeString(
+                      item?.targetLevel,
+                      "Required"
+                    ),
 
-        missingKeywords:
-          safeArray(
-            result?.missingKeywords
-          ),
+                  evidence:
+                    safeString(
+                      item?.evidence
+                    ),
+                }))
+                .filter(
+                  (item) =>
+                    item.skill
+                )
+            : [],
 
-        suggestions:
-          safeArray(
-            result?.suggestions
-          ),
+        missingSkills:
+          Array.isArray(
+            result?.missingSkills
+          )
+            ? result.missingSkills
+                .slice(0, 30)
+                .map((item) => {
+                  const priority =
+                    safeString(
+                      item?.priority,
+                      "Medium"
+                    );
 
-        sections: {
-          contact:
-            safeString(
-              result?.sections
-                ?.contact
-            ),
+                  return {
+                    skill:
+                      safeString(
+                        item?.skill
+                      ),
 
-          summary:
-            safeString(
-              result?.sections
-                ?.summary
-            ),
+                    currentLevel:
+                      safeString(
+                        item?.currentLevel,
+                        "Beginner"
+                      ),
 
-          skills:
-            safeString(
-              result?.sections
-                ?.skills
-            ),
+                    targetLevel:
+                      safeString(
+                        item?.targetLevel,
+                        "Working proficiency"
+                      ),
 
-          experience:
-            safeString(
-              result?.sections
-                ?.experience
-            ),
+                    priority:
+                      [
+                        "High",
+                        "Medium",
+                        "Low",
+                      ].includes(
+                        priority
+                      )
+                        ? priority
+                        : "Medium",
 
-          projects:
-            safeString(
-              result?.sections
-                ?.projects
-            ),
+                    why:
+                      safeString(
+                        item?.why
+                      ),
 
-          education:
-            safeString(
-              result?.sections
-                ?.education
-            ),
+                    action:
+                      safeString(
+                        item?.action
+                      ),
+                  };
+                })
+                .filter(
+                  (item) =>
+                    item.skill
+                )
+            : [],
 
-          certifications:
-            safeString(
-              result?.sections
-                ?.certifications
-            ),
-        },
+        levelComparison:
+          Array.isArray(
+            result?.levelComparison
+          )
+            ? result.levelComparison
+                .slice(0, 30)
+                .map((item) => ({
+                  skill:
+                    safeString(
+                      item?.skill
+                    ),
+
+                  currentLevel:
+                    safeString(
+                      item?.currentLevel,
+                      "Unknown"
+                    ),
+
+                  targetLevel:
+                    safeString(
+                      item?.targetLevel,
+                      "Required"
+                    ),
+
+                  gap:
+                    safeString(
+                      item?.gap
+                    ),
+                }))
+                .filter(
+                  (item) =>
+                    item.skill
+                )
+            : [],
+
+        learningRoadmap:
+          Array.isArray(
+            result?.learningRoadmap
+          )
+            ? result.learningRoadmap
+                .slice(0, 10)
+                .map(
+                  (
+                    item,
+                    index
+                  ) => ({
+                    phase:
+                      safeString(
+                        item?.phase,
+                        `Phase ${index + 1}`
+                      ),
+
+                    title:
+                      safeString(
+                        item?.title,
+                        "Learning phase"
+                      ),
+
+                    duration:
+                      safeString(
+                        item?.duration,
+                        "1–2 weeks"
+                      ),
+
+                    skills:
+                      safeArray(
+                        item?.skills
+                      ),
+
+                    actions:
+                      safeArray(
+                        item?.actions
+                      ),
+                  })
+                )
+            : [],
       };
 
-      // --------------------------------------------------------
-      // FINAL VALIDATION
-      // --------------------------------------------------------
+      let savedResume = null;
 
-      console.log(
-        `✅ ATS analysis completed: ${atsResult.score}/100`
-      );
+      const analysisRecord = {
+        ...analysis,
 
-      console.log(
-        `🔑 Keywords detected: ${atsResult.keywords.length}`
-      );
+        targetRole,
 
-      console.log(
-        `⚠️ Missing keywords: ${atsResult.missingKeywords.length}`
-      );
+        experienceLevel,
 
-      // --------------------------------------------------------
-      // RETURN RESULT
-      // --------------------------------------------------------
-
-      return res.json({
-        success: true,
-
-        result: atsResult,
+        sourceType,
 
         fileName,
 
-        fileType:
-          isPDF
-            ? "pdf"
-            : "docx",
-      });
+        analyzedAt:
+          new Date().toISOString(),
+      };
 
+      if (resumeId) {
+        savedResume =
+          await Resume.findOne({
+            _id: resumeId,
+            userId: req.userId,
+          });
+
+        if (!savedResume) {
+          return res.status(404).json({
+            success: false,
+            code: "RESUME_NOT_FOUND",
+            message:
+              "The selected resume was not found.",
+          });
+        }
+
+        const existingData =
+          savedResume.data &&
+          typeof savedResume.data ===
+            "object"
+            ? savedResume.data
+            : {};
+
+        const history =
+          Array.isArray(
+            existingData.skillGapHistory
+          )
+            ? existingData.skillGapHistory
+            : [];
+
+        savedResume.data = {
+          ...existingData,
+
+          skillGapAnalysis:
+            analysisRecord,
+
+          skillGapHistory: [
+            ...history.slice(-9),
+            analysisRecord,
+          ],
+        };
+
+        await savedResume.save();
+
+        console.log(
+          "✅ Skill gap analysis saved to existing resume:",
+          String(
+            savedResume._id
+          )
+        );
+      } else {
+        savedResume =
+          await Resume.create({
+            userId: req.userId,
+
+            title:
+              `${targetRole} Skill Gap Analysis`,
+
+            templateId:
+              "simple-ats",
+
+            data: {
+              targetRole,
+
+              experienceLevel,
+
+              skillGapAnalysis:
+                analysisRecord,
+
+              skillGapHistory: [
+                analysisRecord,
+              ],
+            },
+          });
+
+        console.log(
+          "✅ New skill gap analysis saved:",
+          String(
+            savedResume._id
+          )
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+
+        analysis,
+
+        analysisId:
+          String(
+            savedResume._id
+          ),
+
+        resumeId:
+          String(
+            savedResume._id
+          ),
+
+        message:
+          "Skill gap analysis completed successfully.",
+      });
     } catch (error) {
+      console.error("");
       console.error(
-        "❌ ATS Analysis Error:",
-        error
+        "=================================================="
       );
+      console.error(
+        "❌ SKILL GAP ANALYSIS ERROR"
+      );
+      console.error(
+        "=================================================="
+      );
+      console.error(
+        "Message:",
+        error?.message || error
+      );
+      console.error(
+        "Stack:",
+        error?.stack || "N/A"
+      );
+      console.error(
+        "=================================================="
+      );
+      console.error("");
+
+      const status =
+        Number(
+          error?.status ||
+            error?.statusCode ||
+            error?.response?.status ||
+            0
+        );
+
+      const message =
+        String(
+          error?.message ||
+            "Skill gap analysis failed."
+        );
+
+      const lowerMessage =
+        message.toLowerCase();
+
+      if (
+        status === 429 ||
+        lowerMessage.includes(
+          "quota"
+        ) ||
+        lowerMessage.includes(
+          "rate limit"
+        ) ||
+        lowerMessage.includes(
+          "resource exhausted"
+        )
+      ) {
+        return res.status(429).json({
+          success: false,
+          code: "GEMINI_QUOTA",
+          message:
+            "Gemini API quota or rate limit reached. Please try again later.",
+        });
+      }
+
+      if (
+        status === 401 ||
+        status === 403 ||
+        lowerMessage.includes(
+          "api key"
+        ) ||
+        lowerMessage.includes(
+          "authentication"
+        ) ||
+        lowerMessage.includes(
+          "permission denied"
+        )
+      ) {
+        return res.status(401).json({
+          success: false,
+          code: "GEMINI_AUTH",
+          message:
+            "Gemini API authentication failed. Please check GEMINI_API_KEY in backend/.env.",
+        });
+      }
+
+      if (
+        status === 500 ||
+        status === 502 ||
+        status === 503 ||
+        status === 504 ||
+        lowerMessage.includes(
+          "temporarily unavailable"
+        ) ||
+        lowerMessage.includes(
+          "service unavailable"
+        ) ||
+        lowerMessage.includes(
+          "timeout"
+        ) ||
+        lowerMessage.includes(
+          "timed out"
+        )
+      ) {
+        return res.status(503).json({
+          success: false,
+          code: "GEMINI_TEMPORARY_ERROR",
+          message:
+            "The Gemini AI service is temporarily unavailable. Please try again shortly.",
+        });
+      }
 
       return res.status(500).json({
         success: false,
-
-        message:
-          error?.message ||
-          "Unable to analyze the resume right now.",
-
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error?.stack
-            : undefined,
+        code: "SKILL_GAP_FAILED",
+        message,
       });
     }
   }
 );
 
 // ============================================================
-// EXPORT ROUTER
+// LIVE JOBS - ADZUNA
 // ============================================================
+
+router.get(
+  "/jobs",
+  async (req, res) => {
+    try {
+      const query =
+        safeString(req.query.query) ||
+        safeString(req.query.role) ||
+        safeString(req.query.targetRole) ||
+        safeString(req.query.search) ||
+        safeString(req.query.title) ||
+        "software developer";
+
+      const data =
+        await requestAdzuna({
+          ...req.query,
+          query,
+        });
+
+      const jobs =
+        Array.isArray(
+          data.results
+        )
+          ? data.results.map(
+              normalizeJob
+            )
+          : [];
+
+      return res.json({
+        success: true,
+        provider: "Adzuna",
+        attribution:
+          "Jobs by Adzuna",
+
+        jobs,
+
+        results: jobs,
+
+        count:
+          jobs.length,
+
+        total:
+          Number(data.count) ||
+          jobs.length,
+
+        page:
+          Number(
+            req.query.page
+          ) || 1,
+      });
+    } catch (error) {
+      console.error(
+        "❌ Adzuna jobs error:",
+        error?.message || error
+      );
+
+      return res.status(
+        error?.status || 502
+      ).json({
+        success: false,
+        provider: "Adzuna",
+        message:
+          error?.message ||
+          "Unable to load live jobs right now.",
+      });
+    }
+  }
+);
 
 module.exports = router;

@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import {
-  Home,
   FileText,
   Settings,
   CheckCircle,
@@ -18,6 +17,7 @@ import {
   FileStack,
   LayoutTemplate,
   Search,
+  X,
 } from "lucide-react";
 
 import { MdDashboard } from "react-icons/md";
@@ -27,14 +27,12 @@ import {
   useLocation,
 } from "react-router-dom";
 
+
 // ============================================================
-// SIDEBAR NAVIGATION STRUCTURE
+// NAVIGATION
 // ============================================================
 
 const NAVIGATION = [
-  // ==========================================================
-  // DASHBOARD
-  // ==========================================================
 
   {
     type: "single",
@@ -42,10 +40,6 @@ const NAVIGATION = [
     path: "/db",
     icon: MdDashboard,
   },
-
-  // ==========================================================
-  // RESUME
-  // ==========================================================
 
   {
     type: "group",
@@ -72,10 +66,6 @@ const NAVIGATION = [
       },
     ],
   },
-
-  // ==========================================================
-  // CAREER ANALYSIS
-  // ==========================================================
 
   {
     type: "group",
@@ -106,10 +96,6 @@ const NAVIGATION = [
     ],
   },
 
-  // ==========================================================
-  // RESUME & JOB TOOLS
-  // ==========================================================
-
   {
     type: "group",
     label: "Resume & Job Tools",
@@ -138,10 +124,6 @@ const NAVIGATION = [
     ],
   },
 
-  // ==========================================================
-  // JOBS
-  // ==========================================================
-
   {
     type: "group",
     label: "Jobs",
@@ -163,10 +145,6 @@ const NAVIGATION = [
     ],
   },
 
-  // ==========================================================
-  // INTERVIEW
-  // ==========================================================
-
   {
     type: "group",
     label: "Interview",
@@ -182,20 +160,12 @@ const NAVIGATION = [
     ],
   },
 
-  // ==========================================================
-  // CAREER PROGRESS
-  // ==========================================================
-
   {
     type: "single",
     label: "Career Progress",
     path: "/career-progress",
     icon: TrendingUp,
   },
-
-  // ==========================================================
-  // SETTINGS
-  // ==========================================================
 
   {
     type: "single",
@@ -205,25 +175,25 @@ const NAVIGATION = [
   },
 ];
 
+
 // ============================================================
-// HELPER
+// ACTIVE PATH
 // ============================================================
 
 const isPathActive = (
   location,
   path
 ) => {
+
   if (
     location.pathname === path
   ) {
     return true;
   }
 
-  // Existing Resume Builder compatibility
   if (
     path === "/resume" &&
-    location.pathname ===
-      "/create-resume"
+    location.pathname === "/create-resume"
   ) {
     return true;
   }
@@ -231,26 +201,65 @@ const isPathActive = (
   return false;
 };
 
+
 // ============================================================
 // SIDEBAR
 // ============================================================
 
-export default function Sidebar() {
+export default function Sidebar({
+  mobileOpen = false,
+  setMobileOpen = () => {},
+}) {
+
   const navigate = useNavigate();
   const location = useLocation();
 
   // ==========================================================
-  // OPEN/CLOSED GROUP STATE
+  // ALL GROUPS CLOSED BY DEFAULT
   // ==========================================================
 
-  const [openGroups, setOpenGroups] =
-    useState({
-      Resume: true,
-      "Career Analysis": true,
-      "Resume & Job Tools": true,
-      Jobs: true,
-      Interview: true,
-    });
+  const [
+    openGroups,
+    setOpenGroups,
+  ] = useState({
+    Resume: false,
+    "Career Analysis": false,
+    "Resume & Job Tools": false,
+    Jobs: false,
+    Interview: false,
+  });
+
+
+  // ==========================================================
+  // CLOSE MOBILE SIDEBAR AFTER NAVIGATION
+  // ==========================================================
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [
+    location.pathname,
+  ]);
+
+
+  // ==========================================================
+  // LOCK BODY SCROLL WHEN MOBILE SIDEBAR IS OPEN
+  // ==========================================================
+
+  useEffect(() => {
+
+    if (!mobileOpen) {
+      document.body.style.overflow = "";
+      return;
+    }
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+
+  }, [mobileOpen]);
+
 
   // ==========================================================
   // TOGGLE GROUP
@@ -259,21 +268,26 @@ export default function Sidebar() {
   const toggleGroup = (
     groupName
   ) => {
-    setOpenGroups((previous) => ({
-      ...previous,
 
-      [groupName]:
-        !previous[groupName],
-    }));
+    setOpenGroups(
+      (previous) => ({
+        ...previous,
+
+        [groupName]:
+          !previous[groupName],
+      })
+    );
   };
 
+
   // ==========================================================
-  // CHECK WHETHER GROUP CONTAINS ACTIVE PAGE
+  // GROUP ACTIVE
   // ==========================================================
 
   const groupHasActivePage = (
     children
   ) => {
+
     return children.some(
       (child) =>
         isPathActive(
@@ -283,49 +297,63 @@ export default function Sidebar() {
     );
   };
 
-  return (
-    <aside
+
+  // ==========================================================
+  // NAVIGATE
+  // ==========================================================
+
+  const handleNavigate = (
+    path
+  ) => {
+
+    navigate(path);
+
+    setMobileOpen(false);
+  };
+
+
+  // ==========================================================
+  // SIDEBAR CONTENT
+  // ==========================================================
+
+  const SidebarContent = () => (
+    <div
       className="
-        fixed
-        top-0
-        left-0
-        z-50
-
-        hidden
-        md:flex
-
-        h-screen
-        w-64
-
+        flex
+        h-full
+        min-h-0
+        w-full
         flex-col
-
-        border-r
-        border-sidebar-border
 
         bg-sidebar
         text-sidebar-foreground
       "
     >
 
-      {/* =====================================================
+      {/* ====================================================
           BRAND
-      ===================================================== */}
+      ==================================================== */}
 
       <div
         className="
           flex
           h-[76px]
           shrink-0
+
           items-center
+          justify-between
+
           border-b
           border-sidebar-border
+
           px-5
         "
       >
+
         <button
           type="button"
           onClick={() =>
-            navigate("/db")
+            handleNavigate("/db")
           }
           className="
             flex
@@ -334,20 +362,23 @@ export default function Sidebar() {
           "
         >
 
-          {/* LOGO */}
-
           <div
             className="
               flex
               h-10
               w-10
               shrink-0
+
               items-center
               justify-center
+
               rounded-xl
+
               border
               border-sidebar-border
+
               bg-background
+
               text-sm
               font-bold
             "
@@ -355,13 +386,10 @@ export default function Sidebar() {
             A/R
           </div>
 
-          {/* BRAND TEXT */}
-
           <div className="text-left">
 
             <div
               className="
-                font-display
                 text-sm
                 font-semibold
                 tracking-tight
@@ -382,54 +410,94 @@ export default function Sidebar() {
           </div>
 
         </button>
+
+
+        {/* MOBILE CLOSE */}
+
+        <button
+          type="button"
+          onClick={() =>
+            setMobileOpen(false)
+          }
+          className="
+            flex
+            h-9
+            w-9
+
+            items-center
+            justify-center
+
+            rounded-xl
+
+            border
+            border-sidebar-border
+
+            text-muted-foreground
+
+            hover:bg-secondary
+            hover:text-foreground
+
+            md:hidden
+          "
+          aria-label="Close sidebar"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
       </div>
 
-      {/* =====================================================
-          WORKSPACE NAVIGATION
-      ===================================================== */}
+
+      {/* ====================================================
+          NAVIGATION
+      ==================================================== */}
 
       <div
         className="
           flex-1
+          min-h-0
+
           overflow-y-auto
+
           px-3
           py-5
+
+          [scrollbar-width:none]
+          [-ms-overflow-style:none]
+
+          [&::-webkit-scrollbar]:hidden
         "
       >
-
-        {/* SECTION TITLE */}
 
         <div
           className="
             mb-3
             px-2
+
             text-[11px]
             font-semibold
             uppercase
             tracking-wider
+
             text-muted-foreground
           "
         >
           Workspace
         </div>
 
-        {/* ===================================================
-            NAVIGATION
-        =================================================== */}
 
         <div className="flex flex-col gap-1">
 
           {NAVIGATION.map(
             (item) => {
 
-              // =================================================
-              // SINGLE ITEM
-              // =================================================
+              {/* ============================================
+                  SINGLE
+              ============================================ */}
 
               if (
-                item.type ===
-                "single"
+                item.type === "single"
               ) {
+
                 const Icon =
                   item.icon;
 
@@ -446,17 +514,9 @@ export default function Sidebar() {
                     }
                     type="button"
                     onClick={() =>
-                      navigate(
+                      handleNavigate(
                         item.path
                       )
-                    }
-                    title={
-                      item.label
-                    }
-                    aria-current={
-                      isActive
-                        ? "page"
-                        : undefined
                     }
                     className={`
                       group
@@ -467,11 +527,12 @@ export default function Sidebar() {
                       rounded-xl
                       px-3
                       py-2.5
+
                       text-left
                       text-sm
                       font-medium
-                      transition-all
-                      duration-200
+
+                      transition
 
                       ${
                         isActive
@@ -486,9 +547,6 @@ export default function Sidebar() {
                         h-[18px]
                         w-[18px]
                         shrink-0
-                        transition-transform
-                        duration-200
-                        group-hover:scale-105
 
                         ${
                           isActive
@@ -499,26 +557,27 @@ export default function Sidebar() {
                     />
 
                     <span className="truncate">
-                      {
-                        item.label
-                      }
+                      {item.label}
                     </span>
 
                   </button>
                 );
               }
 
-              // =================================================
-              // GROUP ITEM
-              // =================================================
+
+              {/* ============================================
+                  GROUP
+              ============================================ */}
 
               const GroupIcon =
                 item.icon;
 
               const isOpen =
-                openGroups[
-                  item.label
-                ];
+                Boolean(
+                  openGroups[
+                    item.label
+                  ]
+                );
 
               const hasActivePage =
                 groupHasActivePage(
@@ -533,9 +592,7 @@ export default function Sidebar() {
                   className="mt-1"
                 >
 
-                  {/* =================================================
-                      GROUP HEADER
-                  ================================================= */}
+                  {/* GROUP HEADER */}
 
                   <button
                     type="button"
@@ -545,19 +602,21 @@ export default function Sidebar() {
                       )
                     }
                     className={`
-                      group
                       flex
                       w-full
                       items-center
                       justify-between
+
                       rounded-xl
+
                       px-3
                       py-2.5
+
                       text-left
                       text-sm
                       font-medium
-                      transition-all
-                      duration-200
+
+                      transition
 
                       ${
                         hasActivePage
@@ -588,20 +647,19 @@ export default function Sidebar() {
                       />
 
                       <span className="truncate">
-                        {
-                          item.label
-                        }
+                        {item.label}
                       </span>
 
                     </span>
+
 
                     <ChevronDown
                       className={`
                         h-4
                         w-4
                         shrink-0
+
                         transition-transform
-                        duration-200
 
                         ${
                           isOpen
@@ -613,17 +671,18 @@ export default function Sidebar() {
 
                   </button>
 
-                  {/* =================================================
-                      CHILDREN
-                  ================================================= */}
+
+                  {/* CHILDREN */}
 
                   {isOpen && (
                     <div
                       className="
                         ml-3
                         mt-1
+
                         border-l
                         border-sidebar-border
+
                         pl-2
                       "
                     >
@@ -647,17 +706,9 @@ export default function Sidebar() {
                               }
                               type="button"
                               onClick={() =>
-                                navigate(
+                                handleNavigate(
                                   child.path
                                 )
-                              }
-                              title={
-                                child.label
-                              }
-                              aria-current={
-                                isActive
-                                  ? "page"
-                                  : undefined
                               }
                               className={`
                                 group
@@ -665,14 +716,17 @@ export default function Sidebar() {
                                 w-full
                                 items-center
                                 gap-3
+
                                 rounded-lg
+
                                 px-3
                                 py-2
+
                                 text-left
                                 text-[13px]
                                 font-medium
-                                transition-all
-                                duration-200
+
+                                transition
 
                                 ${
                                   isActive
@@ -684,12 +738,9 @@ export default function Sidebar() {
 
                               <Icon
                                 className={`
-                                  h-[16px]
-                                  w-[16px]
+                                  h-4
+                                  w-4
                                   shrink-0
-                                  transition-transform
-                                  duration-200
-                                  group-hover:scale-105
 
                                   ${
                                     child.ai
@@ -701,28 +752,37 @@ export default function Sidebar() {
                                 `}
                               />
 
-                              <span className="min-w-0 flex-1 truncate">
-                                {
-                                  child.label
-                                }
+                              <span
+                                className="
+                                  min-w-0
+                                  flex-1
+                                  truncate
+                                "
+                              >
+                                {child.label}
                               </span>
 
-                              {/* AI BADGE */}
 
                               {child.ai && (
                                 <span
                                   className="
                                     shrink-0
+
                                     rounded-full
+
                                     border
                                     border-plum/20
+
                                     bg-plum/10
+
                                     px-1.5
                                     py-0.5
+
                                     text-[8px]
                                     font-semibold
                                     uppercase
                                     tracking-wide
+
                                     text-plum
                                   "
                                 >
@@ -744,11 +804,13 @@ export default function Sidebar() {
           )}
 
         </div>
+
       </div>
 
-      {/* =====================================================
+
+      {/* ====================================================
           AI CAREER ASSISTANT
-      ===================================================== */}
+      ==================================================== */}
 
       <div
         className="
@@ -761,21 +823,26 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() =>
-            navigate(
+            handleNavigate(
               "/ai-suggestions"
             )
           }
           className="
-            group
             w-full
+
             rounded-2xl
+
             border
             border-sidebar-border
+
             bg-background
+
             p-4
+
             text-left
-            transition-all
-            duration-200
+
+            transition
+
             hover:-translate-y-0.5
             hover:shadow-md
           "
@@ -789,17 +856,18 @@ export default function Sidebar() {
             "
           >
 
-            {/* ICON */}
-
             <div
               className="
                 flex
                 h-9
                 w-9
                 shrink-0
+
                 items-center
                 justify-center
+
                 rounded-xl
+
                 bg-plum/10
                 text-plum
               "
@@ -808,8 +876,6 @@ export default function Sidebar() {
                 className="h-4 w-4"
               />
             </div>
-
-            {/* TEXT */}
 
             <div
               className="
@@ -847,15 +913,18 @@ export default function Sidebar() {
 
       </div>
 
-      {/* =====================================================
-          FOOTER / APP NAME
-      ===================================================== */}
+
+      {/* ====================================================
+          FOOTER
+      ==================================================== */}
 
       <div
         className="
           shrink-0
+
           border-t
           border-sidebar-border
+
           px-5
           py-4
         "
@@ -883,6 +952,100 @@ export default function Sidebar() {
 
       </div>
 
-    </aside>
+    </div>
+  );
+
+
+  return (
+    <>
+      {/* ======================================================
+          DESKTOP SIDEBAR
+      ====================================================== */}
+
+      <aside
+        className="
+          fixed
+          left-0
+          top-0
+          z-[60]
+
+          hidden
+
+          h-screen
+          w-64
+
+          border-r
+          border-sidebar-border
+
+          md:flex
+        "
+      >
+        <SidebarContent />
+      </aside>
+
+
+      {/* ======================================================
+          MOBILE OVERLAY
+      ====================================================== */}
+
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          onClick={() =>
+            setMobileOpen(false)
+          }
+          className="
+            fixed
+            inset-0
+            z-[80]
+
+            bg-black/30
+
+            backdrop-blur-[1px]
+
+            md:hidden
+          "
+        />
+      )}
+
+
+      {/* ======================================================
+          MOBILE DRAWER
+      ====================================================== */}
+
+      <aside
+        className={`
+          fixed
+          left-0
+          top-0
+          z-[90]
+
+          h-[100dvh]
+          w-[min(82vw,320px)]
+
+          overflow-hidden
+
+          border-r
+          border-sidebar-border
+
+          shadow-2xl
+
+          transition-transform
+          duration-300
+          ease-out
+
+          md:hidden
+
+          ${
+            mobileOpen
+              ? "translate-x-0"
+              : "-translate-x-full"
+          }
+        `}
+      >
+        <SidebarContent />
+      </aside>
+    </>
   );
 }

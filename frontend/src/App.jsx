@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 import {
   BrowserRouter,
@@ -36,7 +36,7 @@ import TotalResumes from "./components/Pages/TotalResumes";
 import AiSuggestions from "./components/Pages/AiSuggestions";
 
 // ============================================================
-// SIX CAREER ASSISTANT PAGES
+// CAREER ASSISTANT PAGES
 // ============================================================
 
 import SkillGapAnalysis from "./components/Pages/SkillGapAnalysis";
@@ -75,6 +75,7 @@ import Register from "./components/Pages/Register";
 // ============================================================
 // HOME LAYOUT
 // ============================================================
+<<<<<<< HEAD
 
 function AppRoutes() {
   return (
@@ -191,15 +192,52 @@ function AppRoutes() {
 
 // ============================================================
 // HOME LAYOUT
+=======
+//
+// DESKTOP
+// ------------------------------------------------------------
+// Sidebar:
+//   fixed
+//   width = 256px
+//
+// Main area:
+//   width = 100%
+//   padding-left = 256px
+//
+// MOBILE / TABLET
+// ------------------------------------------------------------
+// Sidebar becomes an overlay/drawer.
+//
+// Main area:
+//   width = 100%
+//   padding-left = 0
+//
+// IMPORTANT:
+// Do NOT use md:ml-64 here.
+// Use md:pl-64 so the content width remains 100%.
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 // ============================================================
 
 function HomeLayout() {
+
+  // ==========================================================
+  // MOBILE SIDEBAR STATE
+  // ==========================================================
+
+  const [
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
+  ] = useState(false);
+
   return (
     <div
       className="
         relative
         min-h-screen
         w-full
+
+        overflow-x-hidden
+
         bg-background
         text-foreground
       "
@@ -207,30 +245,31 @@ function HomeLayout() {
 
       {/* ======================================================
           SIDEBAR
+
+          Sidebar is already fixed internally.
+          Do NOT wrap it inside another fixed <aside>.
       ====================================================== */}
 
-      <aside
-        className="
-          fixed
-          inset-y-0
-          left-0
-          z-40
-          w-64
-        "
-      >
-        <Sidebar />
-      </aside>
+      <Sidebar
+        mobileOpen={mobileSidebarOpen}
+        setMobileOpen={setMobileSidebarOpen}
+      />
 
 
       {/* ======================================================
-          HOME RIGHT SIDE
+          MAIN APPLICATION AREA
       ====================================================== */}
 
       <div
         className="
+          relative
+
           min-h-screen
           w-full
-          pl-64
+
+          overflow-x-hidden
+
+          md:pl-64
         "
       >
 
@@ -238,18 +277,10 @@ function HomeLayout() {
             NAVBAR
         ==================================================== */}
 
-        <div
-          className="
-            fixed
-            left-64
-            right-0
-            top-0
-            z-30
-            h-[76px]
-          "
-        >
-          <Navbar />
-        </div>
+        <Navbar
+          mobileOpen={mobileSidebarOpen}
+          setMobileOpen={setMobileSidebarOpen}
+        />
 
 
         {/* ====================================================
@@ -258,12 +289,19 @@ function HomeLayout() {
 
         <main
           className="
+            relative
+
             min-h-screen
             w-full
+
+            overflow-x-hidden
+
             pt-[76px]
           "
         >
+
           <Home />
+
         </main>
 
       </div>
@@ -276,23 +314,44 @@ function HomeLayout() {
 // ============================================================
 // NORMAL PAGE WRAPPER
 // ============================================================
-// No Sidebar.
-// No Navbar.
+//
+// These pages intentionally have:
+// - No Sidebar
+// - No Navbar
+//
+// They remain completely independent/full-screen pages.
 // ============================================================
 
-function NormalLayout({ children }) {
+function NormalLayout({
+  children,
+}) {
+
   return (
     <div
       className="
         min-h-screen
         w-full
+        max-w-full
+
+        overflow-x-hidden
+
         bg-background
         text-foreground
       "
     >
-      <main className="min-h-screen w-full">
+
+      <main
+        className="
+          min-h-screen
+          w-full
+          max-w-full
+
+          overflow-x-hidden
+        "
+      >
         {children}
       </main>
+
     </div>
   );
 }
@@ -303,6 +362,7 @@ function NormalLayout({ children }) {
 // ============================================================
 
 function AppRoutes() {
+
   return (
     <Routes>
 
@@ -312,7 +372,9 @@ function AppRoutes() {
 
       <Route
         path="/"
-        element={<Login />}
+        element={
+          <Login />
+        }
       />
 
 
@@ -322,24 +384,26 @@ function AppRoutes() {
 
       <Route
         path="/register"
-        element={<Register />}
+        element={
+          <Register />
+        }
       />
 
 
       {/* ======================================================
           HOME
-          Sidebar + Navbar ONLY HERE
       ====================================================== */}
 
       <Route
         path="/home"
-        element={<HomeLayout />}
+        element={
+          <HomeLayout />
+        }
       />
 
 
       {/* ======================================================
           DASHBOARD
-          No Sidebar / Navbar
       ====================================================== */}
 
       <Route
@@ -504,7 +568,7 @@ function AppRoutes() {
 
 
       {/* ======================================================
-          1. SKILL GAP ANALYSIS
+          SKILL GAP ANALYSIS
       ====================================================== */}
 
       <Route
@@ -527,7 +591,7 @@ function AppRoutes() {
 
 
       {/* ======================================================
-          2. CAREER RECOMMENDATIONS
+          CAREER RECOMMENDATIONS
       ====================================================== */}
 
       <Route
@@ -575,10 +639,6 @@ function AppRoutes() {
       {/* ======================================================
           RECOMMENDED SKILLS
       ====================================================== */}
-      {/* IMPORTANT:
-          This is now a completely separate page from
-          SkillGapAnalysis.
-      ====================================================== */}
 
       <Route
         path="/recommended-skills"
@@ -600,7 +660,7 @@ function AppRoutes() {
 
 
       {/* ======================================================
-          3. JOB RECOMMENDATIONS
+          JOB RECOMMENDATIONS
       ====================================================== */}
 
       <Route
@@ -632,7 +692,7 @@ function AppRoutes() {
 
 
       {/* ======================================================
-          4. SAVED JOBS
+          SAVED JOBS
       ====================================================== */}
 
       <Route
@@ -655,7 +715,7 @@ function AppRoutes() {
 
 
       {/* ======================================================
-          5. AI MOCK INTERVIEW
+          AI MOCK INTERVIEW
       ====================================================== */}
 
       <Route
@@ -687,7 +747,7 @@ function AppRoutes() {
 
 
       {/* ======================================================
-          6. CAREER PROGRESS
+          CAREER PROGRESS
       ====================================================== */}
 
       <Route
@@ -756,9 +816,12 @@ function AppRoutes() {
 // ============================================================
 
 export default function App() {
+
   return (
     <BrowserRouter>
+
       <AppRoutes />
+
     </BrowserRouter>
   );
 }

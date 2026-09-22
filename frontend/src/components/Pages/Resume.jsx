@@ -372,12 +372,15 @@ function normalizeGeneratedResume(raw = {}) {
     raw ||
     {};
 
+<<<<<<< HEAD
   const contact =
     resume?.contact ||
     resume?.contactInfo ||
     resume?.contactInformation ||
     {};
 
+=======
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
   return {
     ...emptyResume,
 
@@ -400,43 +403,25 @@ function normalizeGeneratedResume(raw = {}) {
 
     email:
       resume.email ||
-      contact.email ||
-      contact.mail ||
-      contact.emailAddress ||
       "",
 
     phone:
       resume.phone ||
-      contact.phone ||
-      contact.mobile ||
-      contact.mobileNumber ||
-      contact.phoneNumber ||
       "",
 
     location:
       resume.location ||
       resume.address ||
-      contact.location ||
-      contact.address ||
-      contact.city ||
       "",
 
     linkedin:
       resume.linkedin ||
       resume.linkedIn ||
-      contact.linkedin ||
-      contact.linkedIn ||
-      contact.linkedinUrl ||
-      contact.linkedInUrl ||
       "",
 
     github:
       resume.github ||
       resume.gitHub ||
-      contact.github ||
-      contact.gitHub ||
-      contact.githubUrl ||
-      contact.gitHubUrl ||
       "",
 
     targetRole:
@@ -735,50 +720,6 @@ export default function Resume() {
   });
 
   // ==========================================================
-  // RESTORE IMPORTED RESUME
-  // ==========================================================
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("importedResumeData");
-      if (!saved) return;
-
-      const parsed = JSON.parse(saved);
-      if (!parsed || typeof parsed !== "object") return;
-
-      const normalized = normalizeGeneratedResume({
-        resume: parsed,
-      });
-
-      setUploadedResumeData(normalized);
-      setResumeSource("existing");
-
-      setForm((previous) => ({
-        ...previous,
-        fullName: normalized.fullName || previous.fullName,
-        email: normalized.email || previous.email,
-        phone: normalized.phone || previous.phone,
-        location: normalized.location || previous.location,
-        linkedin: normalized.linkedin || previous.linkedin,
-        github: normalized.github || previous.github,
-        targetRole: normalized.targetRole || previous.targetRole,
-        summary: normalized.summary || previous.summary,
-        skills: normalized.skills?.join(", ") || previous.skills,
-        experience: normalized.experience || previous.experience,
-        projects: normalized.projects || previous.projects,
-        education: normalized.education || previous.education,
-        certifications: normalized.certifications?.join("\n") || previous.certifications,
-        achievements: normalized.achievements?.join("\n") || previous.achievements,
-      }));
-
-      setSuccess("Resume data imported automatically from your PDF.");
-    } catch (restoreError) {
-      console.error("Could not restore imported resume:", restoreError);
-      sessionStorage.removeItem("importedResumeData");
-    }
-  }, []);
-
-  // ==========================================================
   // UPLOAD
   // ==========================================================
 
@@ -788,10 +729,6 @@ export default function Resume() {
   const [atsResult, setAtsResult] =
     useState(null);
 
-  // Parsed data extracted from the uploaded existing resume.
-  const [uploadedResumeData, setUploadedResumeData] =
-    useState(null);
-
   // ==========================================================
   // GENERATED RESUME
   // ==========================================================
@@ -799,8 +736,168 @@ export default function Resume() {
   const [generatedResume, setGeneratedResume] =
     useState(null);
 
+  // MongoDB id of the current saved resume.
+  const [resumeId, setResumeId] =
+    useState(null);
+
   const [showEditor, setShowEditor] =
     useState(false);
+
+  // ==========================================================
+  // LOAD SAVED RESUME FROM MONGODB
+  // ==========================================================
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get("id");
+
+    if (!id) return;
+
+    let cancelled = false;
+
+    async function loadSavedResume() {
+      try {
+        const token = getToken();
+        if (!token) return;
+
+        const response = await fetch(
+          `${API_URL}/api/resumes/${id}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.message ||
+              "Unable to load the saved resume."
+          );
+        }
+
+        if (cancelled) return;
+
+        const savedResume = payload?.resume || payload;
+        const savedData = savedResume?.data || savedResume;
+        const normalized = normalizeGeneratedResume({
+          resume: savedData,
+        });
+
+        setResumeId(savedResume?._id || id);
+        setGeneratedResume(normalized);
+
+        const savedTemplate =
+          savedResume?.templateId ||
+          savedData?.templateId ||
+          savedData?.template ||
+          "simple-ats";
+
+        setSelectedTemplate(savedTemplate);
+        localStorage.setItem(
+          "selectedResumeTemplate",
+          savedTemplate
+        );
+
+        const experienceText = Array.isArray(normalized.experience)
+          ? normalized.experience
+              .map((item) =>
+                [
+                  item.role || item.title || "",
+                  item.company || "",
+                  item.duration || item.date || "",
+                  ...(item.bullets || []),
+                ]
+                  .filter(Boolean)
+                  .join(" | ")
+              )
+              .join("\n")
+          : String(normalized.experience || "");
+
+        const projectsText = Array.isArray(normalized.projects)
+          ? normalized.projects
+              .map((item) =>
+                [
+                  item.name || item.title || "",
+                  item.description || "",
+                  Array.isArray(item.technologies)
+                    ? item.technologies.join(", ")
+                    : item.technologies || "",
+                ]
+                  .filter(Boolean)
+                  .join(" — ")
+              )
+              .join("\n")
+          : String(normalized.projects || "");
+
+        const educationText = Array.isArray(normalized.education)
+          ? normalized.education
+              .map((item) =>
+                [
+                  item.degree || item.title || "",
+                  item.institution || "",
+                  item.date || item.duration || "",
+                ]
+                  .filter(Boolean)
+                  .join(" — ")
+              )
+              .join("\n")
+          : String(normalized.education || "");
+
+        setForm((previous) => ({
+          ...previous,
+          fullName: normalized.fullName || previous.fullName,
+          email: normalized.email || previous.email,
+          phone: normalized.phone || previous.phone,
+          location: normalized.location || previous.location,
+          linkedin: normalized.linkedin || previous.linkedin,
+          github: normalized.github || previous.github,
+          targetRole: normalized.targetRole || previous.targetRole,
+          summary: normalized.summary || previous.summary,
+          skills: Array.isArray(normalized.skills)
+            ? normalized.skills.join(", ")
+            : previous.skills,
+          experience: experienceText || previous.experience,
+          projects: projectsText || previous.projects,
+          education: educationText || previous.education,
+          certifications: Array.isArray(normalized.certifications)
+            ? normalized.certifications.join("\n")
+            : previous.certifications,
+          achievements: Array.isArray(normalized.achievements)
+            ? normalized.achievements.join("\n")
+            : previous.achievements,
+        }));
+
+        setShowEditor(true);
+        setSuccess(
+          params.get("edit") === "true"
+            ? "Resume loaded. You can edit and regenerate it."
+            : "Saved resume loaded successfully."
+        );
+      } catch (loadError) {
+        console.error(
+          "❌ Load saved resume error:",
+          loadError
+        );
+
+        if (!cancelled) {
+          setError(
+            loadError?.message ||
+              "Unable to load this resume."
+          );
+        }
+      }
+    }
+
+    loadSavedResume();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search]);
 
   // ==========================================================
   // GENERATION
@@ -1115,55 +1212,39 @@ education:
   // ==========================================================
 
   const sourceData = useMemo(
-    () => {
-      const uploaded =
-        resumeSource === "existing"
-          ? uploadedResumeData
-          : null;
-
-      return {
+    () => ({
       fullName:
-        uploaded?.fullName ||
         form.fullName.trim(),
 
       email:
-        uploaded?.email ||
         form.email.trim(),
 
       phone:
-        uploaded?.phone ||
         form.phone.trim(),
 
       location:
-        uploaded?.location ||
         form.location.trim(),
 
       linkedin:
-        uploaded?.linkedin ||
         form.linkedin.trim(),
 
       github:
-        uploaded?.github ||
         form.github.trim(),
 
       targetRole:
-        uploaded?.targetRole ||
-        form.targetRole.trim() ||
-        "Professional",
+        form.targetRole.trim(),
 
       jobDescription:
         form.jobDescription.trim(),
 
       summary:
-        uploaded?.summary ||
         form.summary.trim(),
 
       skills:
-        uploaded?.skills?.length
-          ? uploaded.skills
-          : splitList(form.skills),
+        splitList(form.skills),
 
       experience:
+<<<<<<< HEAD
   uploaded?.experience?.length
     ? uploaded.experience
     : String(form.experience || "").trim(),
@@ -1178,16 +1259,21 @@ education:
     ? uploaded.education
     : String(form.education || "").trim(),
 
+=======
+        form.experience.trim(),
+
+      projects:
+        form.projects.trim(),
+
+      education:
+        form.education.trim(),
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
       certifications:
-        uploaded?.certifications?.length
-          ? uploaded.certifications
-          : form.certifications.trim(),
+        form.certifications.trim(),
 
       achievements:
-        uploaded?.achievements?.length
-          ? uploaded.achievements
-          : form.achievements.trim(),
+        form.achievements.trim(),
 
       experienceLevel,
 
@@ -1200,16 +1286,13 @@ education:
 
       templateId:
         selectedTemplate,
-      };
-    },
+    }),
     [
       form,
       experienceLevel,
       student,
       preferences,
       selectedTemplate,
-      resumeSource,
-      uploadedResumeData,
     ]
   );
 
@@ -1272,32 +1355,26 @@ education:
 
       experience:
         generatedResume?.experience ||
-        uploadedResumeData?.experience ||
         [],
 
       projects:
         generatedResume?.projects ||
-        uploadedResumeData?.projects ||
         [],
 
       education:
         generatedResume?.education ||
-        uploadedResumeData?.education ||
         [],
 
       certifications:
         generatedResume?.certifications ||
-        uploadedResumeData?.certifications ||
         [],
 
       achievements:
         generatedResume?.achievements ||
-        uploadedResumeData?.achievements ||
         [],
     };
   }, [
     generatedResume,
-    uploadedResumeData,
     form,
   ]);
 
@@ -1450,8 +1527,7 @@ education:
     if (step === 5) {
       if (
         resumeSource === "existing" &&
-        !uploadedFile &&
-        !uploadedResumeData
+        !uploadedFile
       ) {
         setError(
           "Please upload your existing resume."
@@ -1526,105 +1602,6 @@ education:
     setError("");
     setSuccess("");
 
-    // Existing-resume flow: once the file has been uploaded,
-    // skip the manual photo/layout/style questions and go
-    // directly to the final template step.
-    if (step === 5 && resumeSource === "existing") {
-      if (uploadedResumeData) {
-        setForm((previous) => ({
-          ...previous,
-          fullName:
-            uploadedResumeData.fullName ||
-            previous.fullName,
-          email:
-            uploadedResumeData.email ||
-            previous.email,
-          phone:
-            uploadedResumeData.phone ||
-            previous.phone,
-          location:
-            uploadedResumeData.location ||
-            previous.location,
-          linkedin:
-            uploadedResumeData.linkedin ||
-            previous.linkedin,
-          github:
-            uploadedResumeData.github ||
-            previous.github,
-          targetRole:
-            uploadedResumeData.targetRole ||
-            previous.targetRole,
-          summary:
-            uploadedResumeData.summary ||
-            previous.summary,
-          skills:
-            Array.isArray(uploadedResumeData.skills)
-              ? uploadedResumeData.skills.join(", ")
-              : String(uploadedResumeData.skills || previous.skills),
-          experience:
-            Array.isArray(uploadedResumeData.experience)
-              ? uploadedResumeData.experience
-                  .map((item) =>
-                    [
-                      item.role || item.title || "",
-                      item.company || "",
-                      item.duration || "",
-                      ...(item.bullets || item.description ? [
-                        ...(item.bullets || []),
-                        item.description || "",
-                      ] : []),
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-                  )
-                  .join("\n")
-              : String(uploadedResumeData.experience || previous.experience),
-          projects:
-            Array.isArray(uploadedResumeData.projects)
-              ? uploadedResumeData.projects
-                  .map((item) =>
-                    [
-                      item.name || item.title || "",
-                      item.description || item.detail || "",
-                      Array.isArray(item.technologies)
-                        ? item.technologies.join(", ")
-                        : item.technologies || "",
-                    ]
-                      .filter(Boolean)
-                      .join(" — ")
-                  )
-                  .join("\n")
-              : String(uploadedResumeData.projects || previous.projects),
-          education:
-            Array.isArray(uploadedResumeData.education)
-              ? uploadedResumeData.education
-                  .map((item) =>
-                    [
-                      item.degree || item.qualification || "",
-                      item.institution || item.school || "",
-                      item.duration || item.year || "",
-                    ]
-                      .filter(Boolean)
-                      .join(" — ")
-                  )
-                  .join("\n")
-              : String(uploadedResumeData.education || previous.education),
-          certifications:
-            Array.isArray(uploadedResumeData.certifications)
-              ? uploadedResumeData.certifications.join("\n")
-              : String(uploadedResumeData.certifications || previous.certifications),
-          achievements:
-            Array.isArray(uploadedResumeData.achievements)
-              ? uploadedResumeData.achievements.join("\n")
-              : String(uploadedResumeData.achievements || previous.achievements),
-        }));
-      }
-
-      // Keep the selected template and land directly on Step 9.
-      setStep(9);
-      return;
-    }
-
     if (step < 9) {
       setStep(
         (previous) =>
@@ -1664,12 +1641,14 @@ education:
 
   const handleUploadChange =
     async (event) => {
-      const file = event.target.files?.[0];
+      const file =
+        event.target.files?.[0];
+
       if (!file) return;
 
       setUploadedFile(file);
       setError("");
-      setSuccess("Reading your resume PDF...");
+      setSuccess("");
 
       if (!isAuthed()) {
         showUserError(
@@ -1677,122 +1656,28 @@ education:
           "Please log in before uploading your resume.",
           false
         );
-        return;
-      }
 
-      const isPdf =
-        file.type === "application/pdf" ||
-        file.name.toLowerCase().endsWith(".pdf");
-
-      if (!isPdf) {
-        showUserError(
-          "PDF Required",
-          "Please upload a PDF resume. The system will read the PDF automatically and fill the resume form.",
-          true
-        );
         return;
       }
 
       try {
-        // IMPORTANT: parse the uploaded file first. ATS scoring is optional
-        // and must never prevent the resume data from being imported.
-        const formData = new FormData();
-        formData.append("file", file);
+        const result =
+          await API.uploadAts(file);
 
-        const token = getToken();
-        const response = await fetch(
-          `${API_URL}/api/ai/parse-resume-file`,
-          {
-            method: "POST",
-            headers: token
-              ? { Authorization: `Bearer ${token}` }
-              : {},
-            body: formData,
-          }
-        );
-
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(
-            payload?.message ||
-              payload?.error ||
-              "The resume PDF could not be read."
-          );
-        }
-
-        const parsed =
-          payload?.resume ||
-          payload?.data?.resume ||
-          payload?.data ||
-          payload;
-
-        if (!parsed || typeof parsed !== "object") {
-          throw new Error("No resume information was extracted from the PDF.");
-        }
-
-        const normalizedUploaded = normalizeGeneratedResume({
-          resume: parsed,
-        });
-
-        if (
-          !normalizedUploaded.fullName &&
-          !normalizedUploaded.email &&
-          !normalizedUploaded.education?.length &&
-          !normalizedUploaded.experience?.length &&
-          !normalizedUploaded.skills?.length
-        ) {
-          throw new Error(
-            "The PDF was opened, but no usable resume information was found. Please upload a text-based PDF."
-          );
-        }
-
-        // Keep the imported data even if the page/component is remounted.
-        sessionStorage.setItem(
-          "importedResumeData",
-          JSON.stringify(normalizedUploaded)
-        );
-
-        setUploadedResumeData(normalizedUploaded);
-        setResumeSource("existing");
-
-        // Automatically fill every editor field.
-        setForm((previous) => ({
-          ...previous,
-          fullName: normalizedUploaded.fullName || previous.fullName,
-          email: normalizedUploaded.email || previous.email,
-          phone: normalizedUploaded.phone || previous.phone,
-          location: normalizedUploaded.location || previous.location,
-          linkedin: normalizedUploaded.linkedin || previous.linkedin,
-          github: normalizedUploaded.github || previous.github,
-          targetRole: normalizedUploaded.targetRole || previous.targetRole,
-          summary: normalizedUploaded.summary || previous.summary,
-          skills: normalizedUploaded.skills.join(", "),
-          experience: normalizedUploaded.experience || previous.experience,
-          projects: normalizedUploaded.projects || previous.projects,
-          education: normalizedUploaded.education || previous.education,
-          certifications: normalizedUploaded.certifications.join("\n"),
-          achievements: normalizedUploaded.achievements.join("\n"),
-        }));
+        setAtsResult(result);
 
         setSuccess(
-          "✓ Resume read successfully. Name, education, experience, skills and other details were imported automatically."
+          "Your resume was uploaded successfully."
+        );
+      } catch (err) {
+        console.error(
+          "Resume upload error:",
+          err
         );
 
-        // ATS analysis is secondary. If it fails, imported resume data remains.
-        try {
-          const ats = await API.uploadAts(file);
-          setAtsResult(ats);
-        } catch (atsError) {
-          console.warn("ATS analysis failed after successful import:", atsError);
-        }
-      } catch (err) {
-        console.error("Resume PDF import error:", err);
-
         showUserError(
-          "Resume Could Not Be Read",
-          err?.message ||
-            "We could not extract the information from this PDF. Please upload a text-based PDF and try again.",
+          "Upload Failed",
+          "We couldn't process this resume. Please check the file and try again.",
           true
         );
       }
@@ -1915,6 +1800,7 @@ education:
 
                     body: JSON.stringify({
                       data: sourceData,
+                      resumeId,
                     }),
 
                     signal:
@@ -1973,15 +1859,25 @@ education:
                 result
               );
 
-              throw new Error(
-                "AI_GENERATION_FAILED"
+              const backendError = new Error(
+                result?.message ||
+                  result?.error ||
+                  `AI generation failed with status ${response.status}.`
               );
+
+              backendError.status = response.status;
+              backendError.code = result?.code;
+              throw backendError;
             }
 
             if (!result?.resume) {
               throw new Error(
                 "INVALID_AI_RESPONSE"
               );
+            }
+
+            if (result?.resumeId) {
+              setResumeId(result.resumeId);
             }
 
             setGenerationProgress(
@@ -2101,6 +1997,7 @@ education:
               finalResume
             );
 
+<<<<<<< HEAD
             // --------------------------------------------------------
             // SAVE GENERATED RESUME TO THE LOGGED-IN USER'S ACCOUNT
             // --------------------------------------------------------
@@ -2162,6 +2059,19 @@ setSuccess("Your resume has been generated and saved to My Resumes.");
                 "Your resume has been generated successfully. It could not be saved to My Resumes right now."
               );
             }
+=======
+            try {
+              window.dispatchEvent(
+                new CustomEvent("resumes:changed")
+              );
+            } catch {
+              // Ignore browser event errors.
+            }
+
+            setSuccess(
+              "Your resume has been generated successfully."
+            );
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
             setIsGenerating(false);
 
@@ -2220,6 +2130,32 @@ setSuccess("Your resume has been generated and saved to My Resumes.");
         }
 
         if (
+          err?.code === "GEMINI_QUOTA" ||
+          err?.status === 429
+        ) {
+          showUserError(
+            "AI Quota Reached",
+            err?.message ||
+              "Gemini API quota has been reached. Please try again after the quota resets.",
+            false
+          );
+          return;
+        }
+
+        if (
+          err?.code === "GEMINI_AUTH" ||
+          err?.status === 401
+        ) {
+          showUserError(
+            "AI Authentication Error",
+            err?.message ||
+              "Gemini API authentication failed. Please check the backend API configuration.",
+            false
+          );
+          return;
+        }
+
+        if (
           err?.message ===
           "AI_SERVICE_BUSY"
         ) {
@@ -2257,11 +2193,22 @@ setSuccess("Your resume has been generated and saved to My Resumes.");
   // PDF GENERATION
   // ==========================================================
 
+<<<<<<< HEAD
 const downloadPDF = async () => {
   try {
     const resumeElement = document.getElementById(
       "generated-resume-document"
     );
+=======
+  const downloadPDF = async () => {
+    let pdfContainer = null;
+
+    try {
+      const resumeElement =
+        document.getElementById(
+          "generated-resume-document"
+        );
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
     if (!resumeElement) {
       showUserError(
@@ -2278,6 +2225,7 @@ const downloadPDF = async () => {
       setTimeout(resolve, 500)
     );
 
+<<<<<<< HEAD
  const canvas = await html2canvas(resumeElement, {
   scale: 2,
   useCORS: true,
@@ -2319,6 +2267,691 @@ const downloadPDF = async () => {
     const pageHeight = 297;
 
     const imgWidth = pageWidth;
+=======
+      // ----------------------------------------------------------
+      // Wait for the latest React render to finish.
+      // ----------------------------------------------------------
+
+      await new Promise((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(resolve)
+        )
+      );
+
+      // ----------------------------------------------------------
+      // OKLCH -> sRGB conversion.
+      //
+      // html2canvas may fail when it encounters modern CSS colors
+      // such as oklch(...). We convert those colors ONLY inside the
+      // temporary PDF clone. The normal application UI is untouched.
+      // ----------------------------------------------------------
+
+      const clamp = (value, min = 0, max = 1) =>
+        Math.min(max, Math.max(min, value));
+
+      const parseCssNumber = (value, scale = 1) => {
+        const text = String(value).trim();
+
+        if (text.endsWith("%")) {
+          return (
+            (parseFloat(text) / 100) *
+            scale
+          );
+        }
+
+        return parseFloat(text);
+      };
+
+      const parseAngle = (value) => {
+        const text = String(value)
+          .trim()
+          .toLowerCase();
+
+        const number = parseFloat(text);
+
+        if (text.endsWith("turn")) {
+          return number * 360;
+        }
+
+        if (text.endsWith("rad")) {
+          return number * (180 / Math.PI);
+        }
+
+        if (text.endsWith("grad")) {
+          return number * 0.9;
+        }
+
+        return number;
+      };
+
+      const parseColorAlpha = (value) => {
+        if (value == null) {
+          return 1;
+        }
+
+        const text = String(value).trim();
+
+        if (!text) {
+          return 1;
+        }
+
+        if (text.endsWith("%")) {
+          return clamp(
+            parseFloat(text) / 100
+          );
+        }
+
+        return clamp(parseFloat(text));
+      };
+
+      const oklabToLinearSrgb = (
+        L,
+        a,
+        b
+      ) => {
+        const l_ =
+          L +
+          0.3963377774 * a +
+          0.2158037573 * b;
+
+        const m_ =
+          L -
+          0.1055613458 * a -
+          0.0638541728 * b;
+
+        const s_ =
+          L -
+          0.0894841775 * a -
+          1.291485548 * b;
+
+        const l = l_ * l_ * l_;
+        const m = m_ * m_ * m_;
+        const s = s_ * s_ * s_;
+
+        return {
+          r:
+            4.0767416621 * l -
+            3.3077115913 * m +
+            0.2309699292 * s,
+          g:
+            -1.2684380046 * l +
+            2.6097574011 * m -
+            0.3413193965 * s,
+          b:
+            -0.0041960863 * l -
+            0.7034186147 * m +
+            1.707614701 * s,
+        };
+      };
+
+      const linearToSrgb = (value) => {
+        const v = clamp(value);
+
+        if (v <= 0.0031308) {
+          return 12.92 * v;
+        }
+
+        return (
+          1.055 *
+            Math.pow(v, 1 / 2.4) -
+          0.055
+        );
+      };
+
+      const oklchToRgb = (
+        lightness,
+        chroma,
+        hue,
+        alpha = 1
+      ) => {
+        const L = clamp(
+          lightness
+        );
+
+        const C = Math.max(
+          0,
+          chroma
+        );
+
+        const radians =
+          (hue * Math.PI) / 180;
+
+        const a =
+          C * Math.cos(radians);
+
+        const b =
+          C * Math.sin(radians);
+
+        const linear =
+          oklabToLinearSrgb(
+            L,
+            a,
+            b
+          );
+
+        const r = Math.round(
+          clamp(
+            linearToSrgb(
+              linear.r
+            )
+          ) * 255
+        );
+
+        const g = Math.round(
+          clamp(
+            linearToSrgb(
+              linear.g
+            )
+          ) * 255
+        );
+
+        const blue = Math.round(
+          clamp(
+            linearToSrgb(
+              linear.b
+            )
+          ) * 255
+        );
+
+        if (alpha >= 0.999) {
+          return `rgb(${r}, ${g}, ${blue})`;
+        }
+
+        return `rgba(${r}, ${g}, ${blue}, ${clamp(alpha)})`;
+      };
+
+      const convertSingleOklch = (
+        value
+      ) => {
+        const text = String(value).trim();
+
+        const match = text.match(
+          /^oklch\(\s*([^\s]+)\s+([^\s]+)\s+([^\s]+)(?:\s*\/\s*([^\s]+))?\s*\)$/i
+        );
+
+        if (!match) {
+          return null;
+        }
+
+        let L = parseCssNumber(
+          match[1],
+          1
+        );
+
+        let C = parseCssNumber(
+          match[2],
+          0.4
+        );
+
+        const H = parseAngle(
+          match[3]
+        );
+
+        const A =
+          match[4] == null
+            ? 1
+            : parseColorAlpha(
+                match[4]
+              );
+
+        // CSS OKLCH lightness is normally 0..1.
+        // Clamp out-of-range values for PDF rendering.
+        L = clamp(L);
+
+        // Chroma is commonly expressed as a raw value.
+        // Percentage chroma is mapped to the CSS 0.4 range.
+        if (
+          String(match[2])
+            .trim()
+            .endsWith("%")
+        ) {
+          C = clamp(C, 0, 0.4);
+        }
+
+        return oklchToRgb(
+          L,
+          C,
+          H,
+          A
+        );
+      };
+
+      const convertOklchFunctions = (
+        value
+      ) => {
+        if (
+          typeof value !== "string" ||
+          !/oklch\(/i.test(value)
+        ) {
+          return value;
+        }
+
+        return value.replace(
+          /oklch\(\s*[^)]*\)/gi,
+          (match) => {
+            try {
+              return (
+                convertSingleOklch(
+                  match
+                ) || "rgb(0, 0, 0)"
+              );
+            } catch (error) {
+              console.warn(
+                "Could not convert OKLCH color:",
+                match,
+                error
+              );
+
+              return "rgb(0, 0, 0)";
+            }
+          }
+        );
+      };
+
+      // ----------------------------------------------------------
+      // Clone the resume into an isolated fixed-width container.
+      // ----------------------------------------------------------
+
+      pdfContainer =
+        document.createElement("div");
+
+      pdfContainer.style.position =
+        "fixed";
+      pdfContainer.style.left =
+        "-100000px";
+      pdfContainer.style.top = "0";
+      pdfContainer.style.width =
+        "794px";
+      pdfContainer.style.minWidth =
+        "794px";
+      pdfContainer.style.background =
+        "#ffffff";
+      pdfContainer.style.zIndex =
+        "-999999";
+      pdfContainer.style.overflow =
+        "visible";
+      pdfContainer.style.pointerEvents =
+        "none";
+
+      const clonedResume =
+        resumeElement.cloneNode(true);
+
+      clonedResume.style.width =
+        "794px";
+      clonedResume.style.minWidth =
+        "794px";
+      clonedResume.style.maxWidth =
+        "794px";
+      clonedResume.style.background =
+        "#ffffff";
+      clonedResume.style.margin = "0";
+      clonedResume.style.padding = "0";
+      clonedResume.style.overflow =
+        "visible";
+
+      pdfContainer.appendChild(
+        clonedResume
+      );
+
+      document.body.appendChild(
+        pdfContainer
+      );
+
+      // ----------------------------------------------------------
+      // Replace OKLCH in cloned inline styles.
+      // ----------------------------------------------------------
+
+      const clonedInlineElements =
+        clonedResume.querySelectorAll(
+          "*"
+        );
+
+      clonedInlineElements.forEach(
+        (element) => {
+          try {
+            if (
+              element.hasAttribute(
+                "style"
+              )
+            ) {
+              const styleText =
+                element.getAttribute(
+                  "style"
+                );
+
+              const converted =
+                convertOklchFunctions(
+                  styleText
+                );
+
+              if (
+                converted !==
+                styleText
+              ) {
+                element.setAttribute(
+                  "style",
+                  converted
+                );
+              }
+            }
+          } catch (error) {
+            console.warn(
+              "Could not process cloned inline style:",
+              error
+            );
+          }
+        }
+      );
+
+      // ----------------------------------------------------------
+      // Wait for fonts and images.
+      // ----------------------------------------------------------
+
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+
+      const images =
+        clonedResume.querySelectorAll(
+          "img"
+        );
+
+      await Promise.all(
+        Array.from(images).map(
+          (img) =>
+            new Promise((resolve) => {
+              if (img.complete) {
+                resolve();
+                return;
+              }
+
+              img.onload = resolve;
+              img.onerror = resolve;
+
+              setTimeout(
+                resolve,
+                5000
+              );
+            })
+        )
+      );
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 400)
+      );
+
+      // ----------------------------------------------------------
+      // Generate the canvas.
+      //
+      // The important part is onclone(): html2canvas gets its own
+      // cloned document, so we remove modern color functions there
+      // before html2canvas parses the CSS.
+      // ----------------------------------------------------------
+
+      const canvas =
+        await html2canvas(
+          clonedResume,
+          {
+            scale: 2,
+            useCORS: true,
+            allowTaint: false,
+            backgroundColor:
+              "#ffffff",
+            logging: false,
+            imageTimeout: 15000,
+            scrollX: 0,
+            scrollY: 0,
+            width: Math.max(
+              clonedResume.scrollWidth,
+              794
+            ),
+            height: Math.max(
+              clonedResume.scrollHeight,
+              1123
+            ),
+            windowWidth: 794,
+            windowHeight: Math.max(
+              clonedResume.scrollHeight,
+              1123
+            ),
+            onclone: (
+              clonedDocument
+            ) => {
+              try {
+                // ------------------------------------------------
+                // Convert all <style> blocks.
+                // ------------------------------------------------
+
+                const styleTags =
+                  clonedDocument.querySelectorAll(
+                    "style"
+                  );
+
+                styleTags.forEach(
+                  (styleTag) => {
+                    try {
+                      styleTag.textContent =
+                        convertOklchFunctions(
+                          styleTag.textContent ||
+                            ""
+                        );
+                    } catch (error) {
+                      console.warn(
+                        "Could not process cloned style tag:",
+                        error
+                      );
+                    }
+                  }
+                );
+
+                // ------------------------------------------------
+                // Convert inline styles in html2canvas's clone.
+                // ------------------------------------------------
+
+                const allElements =
+                  clonedDocument.querySelectorAll(
+                    "*"
+                  );
+
+                allElements.forEach(
+                  (element) => {
+                    try {
+                      if (
+                        element.hasAttribute(
+                          "style"
+                        )
+                      ) {
+                        const original =
+                          element.getAttribute(
+                            "style"
+                          );
+
+                        const converted =
+                          convertOklchFunctions(
+                            original
+                          );
+
+                        if (
+                          converted !==
+                          original
+                        ) {
+                          element.setAttribute(
+                            "style",
+                            converted
+                          );
+                        }
+                      }
+                    } catch (error) {
+                      console.warn(
+                        "Could not process html2canvas element:",
+                        error
+                      );
+                    }
+                  }
+                );
+
+                // ------------------------------------------------
+                // Replace CSS variables containing OKLCH.
+                // ------------------------------------------------
+
+                const root =
+                  clonedDocument.documentElement;
+
+                if (root) {
+                  const rootStyle =
+                    clonedDocument.defaultView?.getComputedStyle(
+                      root
+                    );
+
+                  if (rootStyle) {
+                    for (
+                      let i = 0;
+                      i < rootStyle.length;
+                      i++
+                    ) {
+                      const property =
+                        rootStyle[i];
+
+                      if (
+                        !property.startsWith(
+                          "--"
+                        )
+                      ) {
+                        continue;
+                      }
+
+                      const value =
+                        rootStyle.getPropertyValue(
+                          property
+                        );
+
+                      if (
+                        /oklch\(/i.test(
+                          value
+                        )
+                      ) {
+                        root.style.setProperty(
+                          property,
+                          convertOklchFunctions(
+                            value
+                          )
+                        );
+                      }
+                    }
+                  }
+                }
+
+                // ------------------------------------------------
+                // Force a stable A4-width capture.
+                // ------------------------------------------------
+
+                const clonedResumeElement =
+                  clonedDocument.getElementById(
+                    "generated-resume-document"
+                  );
+
+                if (
+                  clonedResumeElement
+                ) {
+                  clonedResumeElement.style.width =
+                    "794px";
+                  clonedResumeElement.style.minWidth =
+                    "794px";
+                  clonedResumeElement.style.maxWidth =
+                    "794px";
+                  clonedResumeElement.style.background =
+                    "#ffffff";
+                }
+
+                // ------------------------------------------------
+                // Disable animations/transitions and make the PDF
+                // capture independent of the current UI theme.
+                // ------------------------------------------------
+
+                const pdfStyle =
+                  clonedDocument.createElement(
+                    "style"
+                  );
+
+                pdfStyle.textContent = `
+                  *,
+                  *::before,
+                  *::after {
+                    animation: none !important;
+                    transition: none !important;
+                    caret-color: transparent !important;
+                  }
+
+                  html,
+                  body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #ffffff !important;
+                  }
+
+                  #generated-resume-document {
+                    width: 794px !important;
+                    min-width: 794px !important;
+                    max-width: 794px !important;
+                    background: #ffffff !important;
+                  }
+                `;
+
+                clonedDocument.head.appendChild(
+                  pdfStyle
+                );
+              } catch (error) {
+                console.warn(
+                  "html2canvas clone processing warning:",
+                  error
+                );
+              }
+            },
+          }
+        );
+
+      if (
+        !canvas ||
+        !canvas.width ||
+        !canvas.height
+      ) {
+        throw new Error(
+          "The resume could not be rendered for PDF creation."
+        );
+      }
+
+      // ----------------------------------------------------------
+      // Convert canvas to JPEG.
+      // ----------------------------------------------------------
+
+      const imgData =
+        canvas.toDataURL(
+          "image/jpeg",
+          0.95
+        );
+
+      if (
+        !imgData ||
+        imgData === "data:,"
+      ) {
+        throw new Error(
+          "The generated PDF image was empty."
+        );
+      }
+
+      // ----------------------------------------------------------
+      // Create A4 PDF.
+      // ----------------------------------------------------------
+
+      const pdf =
+        new jsPDF({
+          orientation:
+            "portrait",
+          unit: "mm",
+          format: "a4",
+          compress: true,
+        });
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
     const imgHeight =
       (canvas.height * imgWidth) /
@@ -2346,6 +2979,13 @@ const downloadPDF = async () => {
 
       pdf.addPage();
 
+<<<<<<< HEAD
+=======
+      // ----------------------------------------------------------
+      // First page.
+      // ----------------------------------------------------------
+
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
       pdf.addImage(
         imgData,
         "JPEG",
@@ -2357,7 +2997,112 @@ const downloadPDF = async () => {
         "FAST"
       );
 
+<<<<<<< HEAD
       heightLeft -= pageHeight;
+=======
+      heightLeft -=
+        pageHeight;
+
+      // ----------------------------------------------------------
+      // Additional pages.
+      // ----------------------------------------------------------
+
+      while (
+        heightLeft > 0
+      ) {
+        position =
+          heightLeft -
+          imgHeight;
+
+        pdf.addPage();
+
+        pdf.addImage(
+          imgData,
+          "JPEG",
+          0,
+          position,
+          imgWidth,
+          imgHeight,
+          undefined,
+          "FAST"
+        );
+
+        heightLeft -=
+          pageHeight;
+      }
+
+      // ----------------------------------------------------------
+      // Safe filename.
+      // ----------------------------------------------------------
+
+      const safeName =
+        (
+          livePreviewData?.fullName ||
+          form?.fullName ||
+          "resume"
+        )
+          .replace(
+            /[^a-z0-9]+/gi,
+            "_"
+          )
+          .replace(
+            /^_+|_+$/g,
+            "");
+
+      pdf.save(
+        `${
+          safeName ||
+          "resume"
+        }_resume.pdf`
+      );
+
+      // ----------------------------------------------------------
+      // Cleanup.
+      // ----------------------------------------------------------
+
+      if (pdfContainer) {
+        pdfContainer.remove();
+        pdfContainer = null;
+      }
+    } catch (err) {
+      console.error(
+        "=========================================="
+      );
+      console.error(
+        "❌ PDF GENERATION ERROR"
+      );
+      console.error(
+        "=========================================="
+      );
+      console.error(
+        "Error:",
+        err
+      );
+      console.error(
+        "Message:",
+        err?.message
+      );
+      console.error(
+        "Stack:",
+        err?.stack
+      );
+
+      if (pdfContainer) {
+        try {
+          pdfContainer.remove();
+        } catch {
+          // Ignore cleanup errors.
+        }
+      }
+
+      showUserError(
+        "PDF Could Not Be Created",
+        err?.message
+          ? `PDF generation failed: ${err.message}`
+          : "We couldn't create the PDF right now. Please try again.",
+        true
+      );
+>>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
     }
 
     const safeName = (

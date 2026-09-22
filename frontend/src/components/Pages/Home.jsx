@@ -15,25 +15,32 @@ function MobileHomeStyles() {
     <style>{`
       /*
        * ========================================================
-       * HOME MOBILE RESPONSIVE FIX
+       * HOME RESPONSIVE LAYOUT
        * ========================================================
        *
-       * The application shell uses a 256px sidebar on desktop.
-       * On small screens, Home must occupy the complete viewport.
+       * IMPORTANT:
+       * Home no longer needs a negative margin on mobile.
+       *
+       * The old version used:
+       *
+       *   margin-left: -16rem;
+       *
+       * because the old App layout reserved sidebar space.
+       *
+       * The new App layout does NOT reserve sidebar space on
+       * mobile, so that negative margin was pushing the entire
+       * Home page 256px to the left.
        */
 
       @media (max-width: 767px) {
 
         .home-page {
-          width: 100vw !important;
-          min-width: 100vw !important;
-          max-width: 100vw !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
 
-          /*
-           * If the parent layout still reserves the desktop
-           * sidebar width, pull Home back to the viewport edge.
-           */
-          margin-left: -16rem !important;
+          margin-left: 0 !important;
+          margin-right: 0 !important;
 
           overflow-x: hidden !important;
         }
@@ -55,33 +62,66 @@ function MobileHomeStyles() {
           -webkit-tap-highlight-color: transparent;
         }
 
+        /*
+         * HERO
+         */
+
+        .home-page section,
+        .home-page > div {
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        /*
+         * MOBILE RESUME MOCKUP
+         */
+
         .home-page .mobile-resume-mockup {
           width: 100%;
           max-width: 360px;
+          min-width: 0;
+
           margin-left: auto;
           margin-right: auto;
         }
 
+        /*
+         * FEATURE CARDS
+         */
+
         .home-page .mobile-feature-card {
           width: 100%;
+          min-width: 0;
         }
+
+        /*
+         * PROCESS CARDS
+         */
 
         .home-page .mobile-step-card {
           width: 100%;
+          min-width: 0;
         }
+
+        /*
+         * FINAL CTA
+         */
 
         .home-page .mobile-cta {
           width: 100%;
+          min-width: 0;
         }
-      }
 
-      /*
-       * If the sidebar is already hidden by the parent shell,
-       * don't apply the negative margin.
-       */
-      @media (max-width: 767px) {
-        .home-page.home-no-sidebar {
-          margin-left: 0 !important;
+        /*
+         * Prevent long text from creating horizontal overflow.
+         */
+
+        .home-page h1,
+        .home-page h2,
+        .home-page h3,
+        .home-page p,
+        .home-page span {
+          max-width: 100%;
         }
       }
     `}</style>

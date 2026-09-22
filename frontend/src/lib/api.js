@@ -4,6 +4,10 @@ const API = (() => {
     import.meta?.env?.VITE_API_URL ||
     "http://localhost:4000";
 
+  /* =====================================================
+     HEADERS
+  ===================================================== */
+
   function _headers(authRequired = false) {
     const h = {
       "Content-Type": "application/json",
@@ -20,7 +24,10 @@ const API = (() => {
     return h;
   }
 
-  // Prevent requests from hanging forever.
+  /* =====================================================
+     FETCH WITH TIMEOUT
+  ===================================================== */
+
   async function _fetchWithTimeout(
     url,
     options = {},
@@ -42,7 +49,16 @@ const API = (() => {
     }
   }
 
-  async function post(path, body, auth = false, timeoutMs = 5000) {
+  /* =====================================================
+     POST
+  ===================================================== */
+
+  async function post(
+    path,
+    body,
+    auth = false,
+    timeoutMs = 5000
+  ) {
     try {
       const res = await _fetchWithTimeout(
         `${base}${path}`,
@@ -70,7 +86,10 @@ const API = (() => {
 
       return data;
     } catch (err) {
-      // Try same-origin fallback.
+      /* -----------------------------------------------
+         Same-origin fallback
+      ------------------------------------------------ */
+
       try {
         const res2 = await _fetchWithTimeout(
           path,
@@ -82,7 +101,8 @@ const API = (() => {
           timeoutMs
         );
 
-        const data2 = await res2.json().catch(() => ({}));
+        const data2 =
+          await res2.json().catch(() => ({}));
 
         if (!res2.ok) {
           return {
@@ -109,13 +129,22 @@ const API = (() => {
     }
   }
 
-  async function get(path, auth = false) {
+  /* =====================================================
+     GET
+  ===================================================== */
+
+  async function get(
+    path,
+    auth = false,
+    timeoutMs = 5000
+  ) {
     try {
       const res = await _fetchWithTimeout(
         `${base}${path}`,
         {
           headers: _headers(auth),
-        }
+        },
+        timeoutMs
       );
 
       const data = await res.json().catch(() => ({}));
@@ -134,12 +163,21 @@ const API = (() => {
 
       return data;
     } catch (err) {
-      try {
-        const res2 = await _fetchWithTimeout(path, {
-          headers: _headers(auth),
-        });
+      /* -----------------------------------------------
+         Same-origin fallback
+      ------------------------------------------------ */
 
-        const data2 = await res2.json().catch(() => ({}));
+      try {
+        const res2 = await _fetchWithTimeout(
+          path,
+          {
+            headers: _headers(auth),
+          },
+          timeoutMs
+        );
+
+        const data2 =
+          await res2.json().catch(() => ({}));
 
         if (!res2.ok) {
           return {
@@ -165,6 +203,168 @@ const API = (() => {
       }
     }
   }
+
+  /* =====================================================
+     PUT
+  ===================================================== */
+
+  async function put(
+    path,
+    body,
+    auth = false,
+    timeoutMs = 5000
+  ) {
+    try {
+      const res = await _fetchWithTimeout(
+        `${base}${path}`,
+        {
+          method: "PUT",
+          headers: _headers(auth),
+          body: JSON.stringify(body),
+        },
+        timeoutMs
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        return {
+          error: true,
+          status: res.status,
+          message:
+            data.message ||
+            data.error ||
+            res.statusText ||
+            "Request failed",
+        };
+      }
+
+      return data;
+    } catch (err) {
+      /* -----------------------------------------------
+         Same-origin fallback
+      ------------------------------------------------ */
+
+      try {
+        const res2 = await _fetchWithTimeout(
+          path,
+          {
+            method: "PUT",
+            headers: _headers(auth),
+            body: JSON.stringify(body),
+          },
+          timeoutMs
+        );
+
+        const data2 =
+          await res2.json().catch(() => ({}));
+
+        if (!res2.ok) {
+          return {
+            error: true,
+            status: res2.status,
+            message:
+              data2.message ||
+              data2.error ||
+              res2.statusText ||
+              "Request failed",
+          };
+        }
+
+        return data2;
+      } catch (err2) {
+        return {
+          error: true,
+          message:
+            err2.name === "AbortError"
+              ? "Request timed out"
+              : err2.message || "Network error",
+        };
+      }
+    }
+  }
+
+  /* =====================================================
+     DELETE
+  ===================================================== */
+
+  async function remove(
+    path,
+    auth = false,
+    timeoutMs = 5000
+  ) {
+    try {
+      const res = await _fetchWithTimeout(
+        `${base}${path}`,
+        {
+          method: "DELETE",
+          headers: _headers(auth),
+        },
+        timeoutMs
+      );
+
+      const data =
+        await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        return {
+          error: true,
+          status: res.status,
+          message:
+            data.message ||
+            data.error ||
+            res.statusText ||
+            "Request failed",
+        };
+      }
+
+      return data;
+    } catch (err) {
+      /* -----------------------------------------------
+         Same-origin fallback
+      ------------------------------------------------ */
+
+      try {
+        const res2 = await _fetchWithTimeout(
+          path,
+          {
+            method: "DELETE",
+            headers: _headers(auth),
+          },
+          timeoutMs
+        );
+
+        const data2 =
+          await res2.json().catch(() => ({}));
+
+        if (!res2.ok) {
+          return {
+            error: true,
+            status: res2.status,
+            message:
+              data2.message ||
+              data2.error ||
+              res2.statusText ||
+              "Request failed",
+          };
+        }
+
+        return data2;
+      } catch (err2) {
+        return {
+          error: true,
+          message:
+            err2.name === "AbortError"
+              ? "Request timed out"
+              : err2.message || "Network error",
+        };
+      }
+    }
+  }
+
+  /* =====================================================
+     RETURN API
+  ===================================================== */
 
   return {
     /* =====================================================
@@ -184,83 +384,137 @@ const API = (() => {
         password,
       }),
 
-    me: () => get("/api/auth/me", true),
+    me: () =>
+      get("/api/auth/me", true),
 
     /* =====================================================
        RESUMES
     ===================================================== */
 
-    listResumes: () =>
-      get("/api/resumes", true),
+    listResumes: async () => {
+      const data = await get(
+        "/api/resumes",
+        true
+      );
 
-    createResume: (payload) =>
-      post("/api/resumes", payload, true),
+      /*
+        Updated backend returns:
 
-    getResume: (id) =>
-      get(`/api/resumes/${id}`, true),
-
-    deleteResume: (id) => {
-      return (async () => {
-        try {
-          const res = await fetch(
-            `${base}/api/resumes/${id}`,
-            {
-              method: "DELETE",
-              headers: _headers(true),
-            }
-          );
-
-          const data = await res.json().catch(() => ({}));
-
-          if (!res.ok) {
-            return {
-              error: true,
-              status: res.status,
-              message:
-                data.message ||
-                data.error ||
-                res.statusText ||
-                "Request failed",
-            };
-          }
-
-          return data;
-        } catch (err) {
-          try {
-            const res2 = await fetch(
-              `/api/resumes/${id}`,
-              {
-                method: "DELETE",
-                headers: _headers(true),
-              }
-            );
-
-            const data2 =
-              await res2.json().catch(() => ({}));
-
-            if (!res2.ok) {
-              return {
-                error: true,
-                status: res2.status,
-                message:
-                  data2.message ||
-                  data2.error ||
-                  res2.statusText ||
-                  "Request failed",
-              };
-            }
-
-            return data2;
-          } catch (err2) {
-            return {
-              error: true,
-              message:
-                err2.message || "Network error",
-            };
-          }
+        {
+          success: true,
+          resumes: [],
+          count: 0
         }
-      })();
+
+        Older code may return the array directly.
+
+        We return the array so existing
+        Resumes.jsx code continues to work.
+      */
+
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (data?.error) {
+        return data;
+      }
+
+      return data?.resumes || [];
     },
+
+    /* -----------------------------------------------------
+       CREATE RESUME
+    ----------------------------------------------------- */
+
+    createResume: async (payload) => {
+      const data = await post(
+        "/api/resumes",
+        payload,
+        true,
+        15000
+      );
+
+      if (data?.error) {
+        return data;
+      }
+
+      return data?.resume || data;
+    },
+
+    /* -----------------------------------------------------
+       GET SINGLE RESUME
+    ----------------------------------------------------- */
+
+    getResume: async (id) => {
+      if (!id) {
+        return {
+          error: true,
+          message: "Resume ID is required",
+        };
+      }
+
+      const data = await get(
+        `/api/resumes/${encodeURIComponent(id)}`,
+        true,
+        10000
+      );
+
+      if (data?.error) {
+        return data;
+      }
+
+      return data?.resume || data;
+    },
+
+    /* -----------------------------------------------------
+       UPDATE RESUME
+    ----------------------------------------------------- */
+
+    updateResume: async (id, payload) => {
+      if (!id) {
+        return {
+          error: true,
+          message: "Resume ID is required",
+        };
+      }
+
+      const data = await put(
+        `/api/resumes/${encodeURIComponent(id)}`,
+        payload,
+        true,
+        15000
+      );
+
+      if (data?.error) {
+        return data;
+      }
+
+      return data?.resume || data;
+    },
+
+    /* -----------------------------------------------------
+       DELETE RESUME
+    ----------------------------------------------------- */
+
+    deleteResume: async (id) => {
+      if (!id) {
+        return {
+          error: true,
+          message: "Resume ID is required",
+        };
+      }
+
+      return remove(
+        `/api/resumes/${encodeURIComponent(id)}`,
+        true,
+        10000
+      );
+    },
+
+    /* =====================================================
+       TEMPLATES
+    ===================================================== */
 
     listTemplates: () =>
       get("/api/templates", false),
@@ -276,27 +530,42 @@ const API = (() => {
       try {
         const fd = new FormData();
 
+        /*
+          Keep "file" because the backend ATS
+          route accepts both "resume" and "file".
+        */
         fd.append("file", file);
         fd.append("role", targetRole || "");
 
-        const token = localStorage.getItem("token");
+        const token =
+          localStorage.getItem("token");
 
         const headers = {};
 
         if (token) {
-          headers.Authorization = `Bearer ${token}`;
+          headers.Authorization =
+            `Bearer ${token}`;
         }
 
-        const res = await fetch(
+        /*
+          IMPORTANT:
+          Do NOT manually set Content-Type here.
+          Browser automatically adds multipart/form-data
+          with the correct boundary.
+        */
+
+        const res = await _fetchWithTimeout(
           `${base}/api/ats/analyze`,
           {
             method: "POST",
             body: fd,
             headers,
-          }
+          },
+          30000
         );
 
-        const data = await res.json().catch(() => ({}));
+        const data =
+          await res.json().catch(() => ({}));
 
         if (!res.ok) {
           return {
@@ -328,17 +597,21 @@ const API = (() => {
               `Bearer ${token}`;
           }
 
-          const res2 = await fetch(
-            "/api/ats/analyze",
-            {
-              method: "POST",
-              body: fd2,
-              headers: headers2,
-            }
-          );
+          const res2 =
+            await _fetchWithTimeout(
+              "/api/ats/analyze",
+              {
+                method: "POST",
+                body: fd2,
+                headers: headers2,
+              },
+              30000
+            );
 
           const data2 =
-            await res2.json().catch(() => ({}));
+            await res2
+              .json()
+              .catch(() => ({}));
 
           if (!res2.ok) {
             return {
@@ -357,7 +630,127 @@ const API = (() => {
           return {
             error: true,
             message:
-              err2.message || "Network error",
+              err2.name === "AbortError"
+                ? "Request timed out"
+                : err2.message ||
+                  "Network error",
+          };
+        }
+      }
+    },
+
+    /* =====================================================
+       RESUME FILE IMPORT
+    ===================================================== */
+
+    parseResumeFile: async (file) => {
+      if (!file) {
+        return {
+          error: true,
+          message: "Resume file is required",
+        };
+      }
+
+      try {
+        const fd = new FormData();
+
+        fd.append("file", file);
+
+        const token =
+          localStorage.getItem("token");
+
+        const headers = {};
+
+        if (token) {
+          headers.Authorization =
+            `Bearer ${token}`;
+        }
+
+        /*
+          IMPORTANT:
+          Do NOT set Content-Type manually.
+        */
+
+        const res =
+          await _fetchWithTimeout(
+            `${base}/api/ai/parse-resume-file`,
+            {
+              method: "POST",
+              body: fd,
+              headers,
+            },
+            60000
+          );
+
+        const data =
+          await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          return {
+            error: true,
+            status: res.status,
+            message:
+              data.message ||
+              data.error ||
+              res.statusText ||
+              "Resume parsing failed",
+          };
+        }
+
+        return data;
+      } catch (err) {
+        try {
+          const fd2 = new FormData();
+
+          fd2.append("file", file);
+
+          const token =
+            localStorage.getItem("token");
+
+          const headers2 = {};
+
+          if (token) {
+            headers2.Authorization =
+              `Bearer ${token}`;
+          }
+
+          const res2 =
+            await _fetchWithTimeout(
+              "/api/ai/parse-resume-file",
+              {
+                method: "POST",
+                body: fd2,
+                headers: headers2,
+              },
+              60000
+            );
+
+          const data2 =
+            await res2
+              .json()
+              .catch(() => ({}));
+
+          if (!res2.ok) {
+            return {
+              error: true,
+              status: res2.status,
+              message:
+                data2.message ||
+                data2.error ||
+                res2.statusText ||
+                "Resume parsing failed",
+            };
+          }
+
+          return data2;
+        } catch (err2) {
+          return {
+            error: true,
+            message:
+              err2.name === "AbortError"
+                ? "Resume parsing request timed out"
+                : err2.message ||
+                  "Network error while parsing resume",
           };
         }
       }
@@ -372,14 +765,15 @@ const API = (() => {
         "/api/resumes/auto-generate",
         payload,
         true,
-        45000
+        60000
       ),
 
     atsCheck: (id) =>
       post(
         `/api/resumes/${id}/ats-check`,
         {},
-        true
+        true,
+        15000
       ),
 
     aiPopulate: (id, prompt) =>
@@ -387,21 +781,25 @@ const API = (() => {
         `/api/resumes/${id}/ai-populate`,
         { prompt },
         true,
-        45000
+        60000
       ),
 
     generatePdf: (id) =>
       post(
         `/api/resumes/${id}/generate-pdf`,
         {},
-        true
+        true,
+        15000
       ),
 
     /* =====================================================
        GEMINI AI
     ===================================================== */
 
-    // AI Resume Generator
+    /* -----------------------------------------------------
+       AI RESUME GENERATOR
+    ----------------------------------------------------- */
+
     aiGenerate: (payload) =>
       post(
         "/api/ai/generate",
@@ -410,7 +808,10 @@ const API = (() => {
         60000
       ),
 
-    // Personalized AI Career Suggestions
+    /* -----------------------------------------------------
+       AI CAREER SUGGESTIONS
+    ----------------------------------------------------- */
+
     aiSuggestions: (payload) =>
       post(
         "/api/ai/suggestions",
@@ -419,7 +820,22 @@ const API = (() => {
         60000
       ),
 
-    // Generate AI Mock Interview
+    /* -----------------------------------------------------
+       RECOMMENDED SKILLS
+    ----------------------------------------------------- */
+
+    getRecommendedSkills: (payload) =>
+      post(
+        "/api/ai/recommended-skills",
+        payload,
+        true,
+        60000
+      ),
+
+    /* -----------------------------------------------------
+       AI MOCK INTERVIEW
+    ----------------------------------------------------- */
+
     mockInterviewStart: (payload) =>
       post(
         "/api/ai/mock-interview/start",
@@ -428,7 +844,10 @@ const API = (() => {
         60000
       ),
 
-    // Evaluate an interview answer
+    /* -----------------------------------------------------
+       EVALUATE INTERVIEW ANSWER
+    ----------------------------------------------------- */
+
     mockInterviewEvaluate: (payload) =>
       post(
         "/api/ai/mock-interview/evaluate",
@@ -436,6 +855,81 @@ const API = (() => {
         true,
         60000
       ),
+
+    /* -----------------------------------------------------
+       ALTERNATE MOCK INTERVIEW ENDPOINT
+    ----------------------------------------------------- */
+
+    mockInterview: (payload) =>
+      post(
+        "/api/ai/mock-interview",
+        payload,
+        true,
+        60000
+      ),
+
+    evaluateInterview: (payload) =>
+      post(
+        "/api/ai/evaluate-interview",
+        payload,
+        true,
+        60000
+      ),
+
+    /* =====================================================
+       JOB MATCH
+    ===================================================== */
+
+    jobMatch: (payload) =>
+      post(
+        "/api/ai/job-match",
+        payload,
+        true,
+        60000
+      ),
+
+    /* =====================================================
+       LIVE JOBS / ADZUNA
+    ===================================================== */
+
+    getJobs: async (params = {}) => {
+      const searchParams =
+        new URLSearchParams();
+
+      Object.entries(params).forEach(
+        ([key, value]) => {
+          if (
+            value !== undefined &&
+            value !== null &&
+            value !== ""
+          ) {
+            searchParams.append(
+              key,
+              String(value)
+            );
+          }
+        }
+      );
+
+      const queryString =
+        searchParams.toString();
+
+      return get(
+        `/api/ai/jobs${
+          queryString
+            ? `?${queryString}`
+            : ""
+        }`,
+        true,
+        35000
+      );
+    },
+
+    /* =====================================================
+       DIRECT API URL
+    ===================================================== */
+
+    getBaseUrl: () => base,
   };
 })();
 

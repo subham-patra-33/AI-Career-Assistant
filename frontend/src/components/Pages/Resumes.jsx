@@ -4,123 +4,323 @@ import React, {
   useState,
 } from "react";
 
-import API from "../../lib/api";
-
 import {
   useNavigate,
 } from "react-router-dom";
 
-import BackButton from "../BackButton";
+import API from "../../lib/api";
+import { getToken } from "../../lib/auth";
 
-import {
-  FileText,
-  Plus,
-  Search,
-  Pencil,
-  Eye,
-  Trash2,
-  MoreHorizontal,
-  Clock3,
-  LayoutTemplate,
-  Grid3X3,
-  List,
-  X,
-  AlertCircle,
-  FilePlus2,
-  ArrowUpRight,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+/* ============================================================
+   ICONS
+   ============================================================ */
 
-// ============================================================
-// HELPERS
-// ============================================================
-
-function getResumeId(resume) {
-  return resume?._id || resume?.id;
+function DocumentIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8" />
+      <path d="M8 17h6" />
+    </svg>
+  );
 }
 
-function getResumeTitle(resume) {
+function SparkleIcon() {
   return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m12 3-1.2 4.2L7 8.5l3.8 1.3L12 14l1.2-4.2L17 8.5l-3.8-1.3z" />
+      <path d="m19 14-.7 2.3L16 17l2.3.7L19 20l.7-2.3L22 17l-2.3-.7z" />
+      <path d="m5 15-.6 2L2.5 17l1.9.6L5 20l.6-2.4 1.9-.6-1.9-.6z" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle
+        cx="11"
+        cy="11"
+        r="7"
+      />
+      <path d="m20 20-4-4" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="m19 6-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle
+        cx="12"
+        cy="12"
+        r="3"
+      />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 11a8.1 8.1 0 0 0-15-3" />
+      <path d="M4 4v5h5" />
+      <path d="M4 13a8.1 8.1 0 0 0 15 3" />
+      <path d="M20 20v-5h-5" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect
+        x="4"
+        y="4"
+        width="6"
+        height="6"
+      />
+      <rect
+        x="14"
+        y="4"
+        width="6"
+        height="6"
+      />
+      <rect
+        x="4"
+        y="14"
+        width="6"
+        height="6"
+      />
+      <rect
+        x="14"
+        y="14"
+        width="6"
+        height="6"
+      />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    >
+      <path d="M8 6h12" />
+      <path d="M8 12h12" />
+      <path d="M8 18h12" />
+      <path d="M4 6h.01" />
+      <path d="M4 12h.01" />
+      <path d="M4 18h.01" />
+    </svg>
+  );
+}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+
+function getResumeData(resume) {
+  return resume?.data &&
+    typeof resume.data === "object"
+    ? resume.data
+    : resume || {};
+}
+
+function getResumeName(resume) {
+  const data =
+    getResumeData(resume);
+
+  return (
+    data?.fullName ||
+    data?.name ||
     resume?.title ||
-    resume?.name ||
-    resume?.resumeName ||
     "Untitled Resume"
   );
 }
 
+function getResumeRole(resume) {
+  const data =
+    getResumeData(resume);
+
+  return (
+    data?.targetRole ||
+    data?.role ||
+    "Professional Resume"
+  );
+}
+
 function getTemplateName(resume) {
+  const data =
+    getResumeData(resume);
+
   return (
-    resume?.templateName ||
-    resume?.template ||
     resume?.templateId ||
-    "Professional Template"
+    data?.templateId ||
+    data?.template ||
+    "simple-ats"
   );
 }
 
-function getDateValue(resume) {
-  return (
+function getUpdatedDate(resume) {
+  const value =
     resume?.updatedAt ||
-    resume?.updated_at ||
-    resume?.createdAt ||
-    resume?.created_at ||
-    null
-  );
-}
+    resume?.createdAt;
 
-function formatDate(date) {
-  if (!date) {
-    return "Recently created";
+  if (!value) {
+    return "";
   }
 
-  const parsed = new Date(date);
+  const date =
+    new Date(value);
 
-  if (Number.isNaN(parsed.getTime())) {
-    return "Recently created";
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
   }
 
-  const now = new Date();
-
-  const difference =
-    now.getTime() - parsed.getTime();
-
-  const minutes = Math.floor(
-    difference / (1000 * 60)
-  );
-
-  const hours = Math.floor(
-    difference / (1000 * 60 * 60)
-  );
-
-  const days = Math.floor(
-    difference / (1000 * 60 * 60 * 24)
-  );
-
-  if (minutes < 1) {
-    return "Just now";
-  }
-
-  if (minutes < 60) {
-    return `${minutes} min${
-      minutes === 1 ? "" : "s"
-    } ago`;
-  }
-
-  if (hours < 24) {
-    return `${hours} hour${
-      hours === 1 ? "" : "s"
-    } ago`;
-  }
-
-  if (days === 1) {
-    return "Yesterday";
-  }
-
-  if (days < 7) {
-    return `${days} days ago`;
-  }
-
-  return parsed.toLocaleDateString(
+  return date.toLocaleDateString(
     "en-IN",
     {
       day: "numeric",
@@ -130,1067 +330,208 @@ function formatDate(date) {
   );
 }
 
-// ============================================================
-// MINI RESUME PREVIEW
-// ============================================================
-
-function ResumePreview({
-  resume,
-  onPreview,
-}) {
-  const title =
-    getResumeTitle(resume);
-
+function getResumeId(resume) {
   return (
-    <div
-      className="
-        group/preview
-        relative
-        flex
-        h-[250px]
-        items-center
-        justify-center
-        overflow-hidden
-        rounded-t-2xl
-        bg-gradient-to-br
-        from-slate-100
-        via-slate-50
-        to-white
-      "
-    >
-      {/* Decorative glow */}
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -right-10
-          -top-10
-          h-32
-          w-32
-          rounded-full
-          bg-plum/10
-          blur-3xl
-        "
-      />
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -bottom-12
-          -left-12
-          h-32
-          w-32
-          rounded-full
-          bg-primary/10
-          blur-3xl
-        "
-      />
-
-      {/* Resume paper */}
-
-      <div
-        className="
-          relative
-          h-[210px]
-          w-[158px]
-          overflow-hidden
-          rounded-[3px]
-          bg-white
-          shadow-[0_15px_40px_rgba(15,23,42,0.18)]
-          transition-all
-          duration-300
-          group-hover:-translate-y-1
-          group-hover:shadow-[0_20px_50px_rgba(15,23,42,0.24)]
-        "
-      >
-        {/* Header */}
-
-        <div
-          className="
-            border-b
-            border-slate-100
-            px-4
-            pb-3
-            pt-4
-          "
-        >
-          <div
-            className="
-              h-2
-              w-16
-              rounded-full
-              bg-slate-800
-            "
-          />
-
-          <div
-            className="
-              mt-2
-              h-1.5
-              w-24
-              rounded-full
-              bg-slate-200
-            "
-          />
-
-          <div
-            className="
-              mt-2
-              flex
-              gap-1
-            "
-          >
-            <span
-              className="
-                h-1
-                w-8
-                rounded-full
-                bg-slate-200
-              "
-            />
-
-            <span
-              className="
-                h-1
-                w-10
-                rounded-full
-                bg-slate-200
-              "
-            />
-
-            <span
-              className="
-                h-1
-                w-7
-                rounded-full
-                bg-slate-200
-              "
-            />
-          </div>
-        </div>
-
-        {/* Body */}
-
-        <div className="px-4 py-3">
-          <div
-            className="
-              mb-2
-              h-1.5
-              w-12
-              rounded-full
-              bg-slate-700
-            "
-          />
-
-          {[1, 2, 3, 4].map(
-            (item) => (
-              <div
-                key={item}
-                className="
-                  mb-1.5
-                  h-1
-                  rounded-full
-                  bg-slate-100
-                "
-                style={{
-                  width:
-                    item === 3
-                      ? "68%"
-                      : item === 4
-                      ? "82%"
-                      : "94%",
-                }}
-              />
-            )
-          )}
-
-          <div
-            className="
-              mb-2
-              mt-4
-              h-1.5
-              w-14
-              rounded-full
-              bg-slate-700
-            "
-          />
-
-          {[1, 2, 3].map(
-            (item) => (
-              <div
-                key={item}
-                className="
-                  mb-1.5
-                  h-1
-                  rounded-full
-                  bg-slate-100
-                "
-                style={{
-                  width:
-                    item === 2
-                      ? "72%"
-                      : "90%",
-                }}
-              />
-            )
-          )}
-
-          <div
-            className="
-              mb-2
-              mt-4
-              h-1.5
-              w-10
-              rounded-full
-              bg-slate-700
-            "
-          />
-
-          <div className="flex flex-wrap gap-1">
-            {[1, 2, 3, 4, 5].map(
-              (item) => (
-                <span
-                  key={item}
-                  className="
-                    h-3
-                    w-7
-                    rounded
-                    bg-slate-100
-                  "
-                />
-              )
-            )}
-          </div>
-        </div>
-
-        <span className="sr-only">
-          {title}
-        </span>
-      </div>
-
-      {/* Preview overlay */}
-
-      <div
-        className="
-          absolute
-          inset-0
-          flex
-          items-center
-          justify-center
-          bg-slate-950/0
-          opacity-0
-          transition-all
-          duration-300
-          group-hover/preview:bg-slate-950/20
-          group-hover/preview:opacity-100
-        "
-      >
-        <button
-          type="button"
-          onClick={() =>
-            onPreview(resume)
-          }
-          className="
-            flex
-            items-center
-            gap-2
-            rounded-xl
-            bg-white
-            px-4
-            py-2.5
-            text-sm
-            font-semibold
-            text-slate-900
-            shadow-xl
-            transition
-            hover:scale-105
-          "
-        >
-          <Eye className="h-4 w-4" />
-          View Resume
-        </button>
-      </div>
-    </div>
+    resume?._id ||
+    resume?.id ||
+    resume?.resumeId ||
+    null
   );
 }
 
-// ============================================================
-// SKELETON CARD
-// ============================================================
-
-function SkeletonCard() {
-  return (
-    <div
-      className="
-        overflow-hidden
-        rounded-2xl
-        border
-        border-border
-        bg-background
-      "
-    >
-      <div
-        className="
-          h-[250px]
-          animate-pulse
-          bg-secondary
-        "
-      />
-
-      <div className="space-y-3 p-4">
-        <div
-          className="
-            h-4
-            w-2/3
-            animate-pulse
-            rounded
-            bg-secondary
-          "
-        />
-
-        <div
-          className="
-            h-3
-            w-1/2
-            animate-pulse
-            rounded
-            bg-secondary
-          "
-        />
-
-        <div
-          className="
-            h-9
-            w-full
-            animate-pulse
-            rounded-lg
-            bg-secondary
-          "
-        />
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// ACTION MENU
-// ============================================================
-
-function ActionMenu({
-  resume,
-  onView,
-  onEdit,
-  onDelete,
-}) {
-  const [
-    open,
-    setOpen,
-  ] = useState(false);
-
-  useEffect(() => {
-    const handleOutside =
-      (event) => {
-        if (
-          !event.target.closest(
-            "[data-resume-menu]"
-          )
-        ) {
-          setOpen(false);
-        }
-      };
-
-    document.addEventListener(
-      "mousedown",
-      handleOutside
-    );
-
-    return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleOutside
-      );
-    };
-  }, []);
-
-  return (
-    <div
-      className="relative"
-      data-resume-menu
-    >
-      <button
-        type="button"
-        onClick={() =>
-          setOpen(
-            (value) => !value
-          )
-        }
-        className="
-          flex
-          h-9
-          w-9
-          items-center
-          justify-center
-          rounded-lg
-          border
-          border-border
-          bg-background
-          text-muted-foreground
-          transition
-          hover:bg-secondary
-          hover:text-foreground
-        "
-        aria-label="Resume actions"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-
-      {open && (
-        <div
-          className="
-            absolute
-            right-0
-            top-11
-            z-50
-            w-44
-            overflow-hidden
-            rounded-xl
-            border
-            border-border
-            bg-background
-            p-1.5
-            shadow-2xl
-          "
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onView(resume);
-            }}
-            className="
-              flex
-              w-full
-              items-center
-              gap-3
-              rounded-lg
-              px-3
-              py-2.5
-              text-left
-              text-sm
-              hover:bg-secondary
-            "
-          >
-            <Eye className="h-4 w-4" />
-            View Resume
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onEdit(resume);
-            }}
-            className="
-              flex
-              w-full
-              items-center
-              gap-3
-              rounded-lg
-              px-3
-              py-2.5
-              text-left
-              text-sm
-              hover:bg-secondary
-            "
-          >
-            <Pencil className="h-4 w-4" />
-            Edit Resume
-          </button>
-
-          <div className="my-1 border-t border-border" />
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onDelete(resume);
-            }}
-            className="
-              flex
-              w-full
-              items-center
-              gap-3
-              rounded-lg
-              px-3
-              py-2.5
-              text-left
-              text-sm
-              text-red-600
-              hover:bg-red-50
-            "
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Resume
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// DELETE MODAL
-// ============================================================
-
-function DeleteModal({
-  resume,
-  deleting,
-  onCancel,
-  onConfirm,
-}) {
-  if (!resume) {
-    return null;
-  }
-
-  return (
-    <div
-      className="
-        fixed
-        inset-0
-        z-[100]
-        flex
-        items-center
-        justify-center
-        bg-slate-950/50
-        p-4
-        backdrop-blur-sm
-      "
-    >
-      <div
-        className="
-          w-full
-          max-w-md
-          rounded-2xl
-          border
-          border-border
-          bg-background
-          p-6
-          shadow-2xl
-        "
-      >
-        <div
-          className="
-            flex
-            h-12
-            w-12
-            items-center
-            justify-center
-            rounded-xl
-            bg-red-50
-            text-red-600
-          "
-        >
-          <Trash2 className="h-5 w-5" />
-        </div>
-
-        <h2
-          className="
-            mt-5
-            text-lg
-            font-bold
-            text-foreground
-          "
-        >
-          Delete this resume?
-        </h2>
-
-        <p
-          className="
-            mt-2
-            text-sm
-            leading-relaxed
-            text-muted-foreground
-          "
-        >
-          You're about to permanently
-          delete{" "}
-          <span className="font-semibold text-foreground">
-            {getResumeTitle(
-              resume
-            )}
-          </span>
-          . This action cannot be undone.
-        </p>
-
-        <div
-          className="
-            mt-6
-            flex
-            justify-end
-            gap-2
-          "
-        >
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={deleting}
-            className="
-              rounded-xl
-              border
-              border-border
-              px-4
-              py-2.5
-              text-sm
-              font-medium
-              text-foreground
-              transition
-              hover:bg-secondary
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-            "
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={deleting}
-            className="
-              inline-flex
-              items-center
-              gap-2
-              rounded-xl
-              bg-red-600
-              px-4
-              py-2.5
-              text-sm
-              font-semibold
-              text-white
-              transition
-              hover:bg-red-700
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-            "
-          >
-            {deleting && (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            )}
-
-            {deleting
-              ? "Deleting..."
-              : "Delete Resume"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// EMPTY STATE
-// ============================================================
-
-function EmptyState({
-  searching,
-  onCreate,
-  onClearSearch,
-}) {
-  return (
-    <div
-      className="
-        rounded-2xl
-        border
-        border-dashed
-        border-border
-        bg-background
-        px-6
-        py-16
-        text-center
-      "
-    >
-      <div
-        className="
-          mx-auto
-          flex
-          h-16
-          w-16
-          items-center
-          justify-center
-          rounded-2xl
-          bg-plum/10
-          text-plum
-        "
-      >
-        {searching ? (
-          <Search className="h-7 w-7" />
-        ) : (
-          <FilePlus2 className="h-7 w-7" />
-        )}
-      </div>
-
-      <h2
-        className="
-          mt-5
-          text-lg
-          font-bold
-          text-foreground
-        "
-      >
-        {searching
-          ? "No resumes found"
-          : "Your resume workspace is empty"}
-      </h2>
-
-      <p
-        className="
-          mx-auto
-          mt-2
-          max-w-md
-          text-sm
-          leading-relaxed
-          text-muted-foreground
-        "
-      >
-        {searching
-          ? "We couldn't find a resume matching your search. Try another name or clear the search."
-          : "Create your first professional resume and keep all your versions organized in one place."}
-      </p>
-
-      {searching ? (
-        <button
-          type="button"
-          onClick={onClearSearch}
-          className="
-            mt-6
-            inline-flex
-            items-center
-            gap-2
-            rounded-xl
-            border
-            border-border
-            px-4
-            py-2.5
-            text-sm
-            font-semibold
-            text-foreground
-            transition
-            hover:bg-secondary
-          "
-        >
-          <X className="h-4 w-4" />
-          Clear Search
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={onCreate}
-          className="
-            mt-6
-            inline-flex
-            items-center
-            gap-2
-            rounded-xl
-            bg-foreground
-            px-5
-            py-3
-            text-sm
-            font-semibold
-            text-background
-            shadow-sm
-            transition
-            hover:-translate-y-0.5
-            hover:shadow-lg
-          "
-        >
-          <Plus className="h-4 w-4" />
-          Create New Resume
-          <ArrowUpRight className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
+/* ============================================================
+   COMPONENT
+   ============================================================ */
 
 export default function Resumes() {
   const navigate =
     useNavigate();
 
-  const [
-    resumes,
-    setResumes,
-  ] = useState([]);
+  /* ----------------------------------------------------------
+     STATE
+     ---------------------------------------------------------- */
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
+  const [resumes, setResumes] =
+    useState([]);
 
-  const [
-    error,
-    setError,
-  ] = useState(null);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-  const [
-    sortBy,
-    setSortBy,
-  ] = useState("updated");
+  const [error, setError] =
+    useState("");
 
-  const [
-    viewMode,
-    setViewMode,
-  ] = useState("grid");
+  const [search, setSearch] =
+    useState("");
 
-  const [
-    deleteTarget,
-    setDeleteTarget,
-  ] = useState(null);
+  const [sortBy, setSortBy] =
+    useState("recent");
 
-  const [
-    deleting,
-    setDeleting,
-  ] = useState(false);
+  const [viewMode, setViewMode] =
+    useState("grid");
 
-  // ==========================================================
-  // LOAD RESUMES
-  // ==========================================================
+  const [deletingId, setDeletingId] =
+    useState(null);
 
-  async function load() {
-    const token =
-      localStorage.getItem(
-        "token"
-      );
+  /* ----------------------------------------------------------
+     LOAD RESUMES
+     ---------------------------------------------------------- */
 
-    if (!token) {
-      navigate("/");
-      return;
-    }
+  const loadResumes =
+    async (
+      showRefresh = false
+    ) => {
+      try {
+        if (showRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
 
-    setLoading(true);
-    setError(null);
+        setError("");
 
-    try {
-      const resp =
-        await API.listResumes();
+        const token =
+          getToken();
 
-      if (
-        resp &&
-        resp.error
-      ) {
+        if (!token) {
+          setError(
+            "Please log in to view your saved resumes."
+          );
+
+          setResumes([]);
+
+          return;
+        }
+
+        const response =
+          await API.listResumes();
+
+        /* ----------------------------------------------------
+           IMPORTANT:
+           API.listResumes() may return:
+
+           1. Array
+           2. { resumes: [] }
+           3. { data: [] }
+           4. { error: true, message: "..." }
+
+           Handle all cases safely.
+        ---------------------------------------------------- */
+
+        if (
+          response?.error
+        ) {
+          throw new Error(
+            response.message ||
+              "Unable to load your saved resumes."
+          );
+        }
+
+        let items = [];
+
+        if (
+          Array.isArray(response)
+        ) {
+          items =
+            response;
+        } else if (
+          Array.isArray(
+            response?.resumes
+          )
+        ) {
+          items =
+            response.resumes;
+        } else if (
+          Array.isArray(
+            response?.data
+          )
+        ) {
+          items =
+            response.data;
+        }
+
+        setResumes(
+          Array.isArray(items)
+            ? items
+            : []
+        );
+      } catch (err) {
+        console.error(
+          "❌ Load resumes error:",
+          err
+        );
+
         setError(
-          resp.message ||
-            "Failed to load resumes."
+          err?.message ||
+            "Unable to load your saved resumes."
         );
 
         setResumes([]);
-      } else {
-        setResumes(
-          Array.isArray(resp)
-            ? resp
-            : []
-        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (err) {
-      console.error(
-        "Load resumes error:",
-        err
-      );
+    };
 
-      setError(
-        "Unable to load your resumes right now."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ==========================================================
-  // INITIAL LOAD
-  // ==========================================================
+  /* ----------------------------------------------------------
+     INITIAL LOAD + GENERATION EVENT
+     ---------------------------------------------------------- */
 
   useEffect(() => {
-    load();
-  }, []);
+    loadResumes();
 
-  // ==========================================================
-  // LISTEN FOR RESUME CHANGES
-  // ==========================================================
-
-  useEffect(() => {
-    const handleResumeChange =
+    const handleResumeChanged =
       () => {
-        load();
+        loadResumes();
       };
 
     window.addEventListener(
       "resumes:changed",
-      handleResumeChange
+      handleResumeChanged
     );
 
     return () => {
       window.removeEventListener(
         "resumes:changed",
-        handleResumeChange
+        handleResumeChanged
       );
     };
   }, []);
 
-  // ==========================================================
-  // DELETE
-  // ==========================================================
+  /* ----------------------------------------------------------
+     FILTER + SORT
+     ---------------------------------------------------------- */
 
-  async function handleDelete() {
-    if (!deleteTarget) {
-      return;
-    }
-
-    const id =
-      getResumeId(
-        deleteTarget
-      );
-
-    if (!id) {
-      setError(
-        "Unable to identify this resume."
-      );
-
-      setDeleteTarget(null);
-      return;
-    }
-
-    setDeleting(true);
-    setError(null);
-
-    try {
-      const resp =
-        await API.deleteResume(
-          id
-        );
-
-      if (
-        resp &&
-        resp.error
-      ) {
-        setError(
-          resp.message ||
-            "Delete failed."
-        );
-      } else {
-        setResumes(
-          (current) =>
-            current.filter(
-              (resume) =>
-                getResumeId(
-                  resume
-                ) !== id
-            )
-        );
-
-        try {
-          window.dispatchEvent(
-            new CustomEvent(
-              "resumes:changed"
-            )
-          );
-        } catch (e) {
-          // Ignore event errors
-        }
-      }
-    } catch (err) {
-      console.error(
-        "Delete resume error:",
-        err
-      );
-
-      setError(
-        "Unable to delete this resume right now."
-      );
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  }
-
-  // ==========================================================
-  // VIEW
-  // ==========================================================
-
-  function handleView(
-    resume
-  ) {
-    const id =
-      getResumeId(
-        resume
-      );
-
-    if (!id) {
-      setError(
-        "Unable to open this resume."
-      );
-      return;
-    }
-
-    navigate(
-      `/resume?id=${id}`
-    );
-  }
-
-  // ==========================================================
-  // EDIT
-  // ==========================================================
-
-  function handleEdit(
-    resume
-  ) {
-    const id =
-      getResumeId(
-        resume
-      );
-
-    if (!id) {
-      setError(
-        "Unable to edit this resume."
-      );
-      return;
-    }
-
-    navigate(
-      `/resume?id=${id}&edit=true`
-    );
-  }
-
-  // ==========================================================
-  // FILTER + SORT
-  // ==========================================================
-
-  const filteredResumes =
+  const displayedResumes =
     useMemo(() => {
-      const query =
+      let result =
+        [...resumes];
+
+      const searchValue =
         search
           .trim()
           .toLowerCase();
 
-      let result =
-        [...resumes];
-
-      if (query) {
+      if (searchValue) {
         result =
           result.filter(
             (resume) => {
-              const title =
-                getResumeTitle(
+              const name =
+                getResumeName(
                   resume
+                ).toLowerCase();
+
+              const role =
+                getResumeRole(
+                  resume
+                ).toLowerCase();
+
+              const title =
+                String(
+                  resume?.title ||
+                    ""
                 ).toLowerCase();
 
               const template =
@@ -1199,11 +540,17 @@ export default function Resumes() {
                 ).toLowerCase();
 
               return (
+                name.includes(
+                  searchValue
+                ) ||
+                role.includes(
+                  searchValue
+                ) ||
                 title.includes(
-                  query
+                  searchValue
                 ) ||
                 template.includes(
-                  query
+                  searchValue
                 )
               );
             }
@@ -1212,59 +559,37 @@ export default function Resumes() {
 
       result.sort(
         (a, b) => {
-          if (
-            sortBy ===
-            "name"
-          ) {
-            return getResumeTitle(
-              a
-            ).localeCompare(
-              getResumeTitle(
-                b
-              )
-            );
-          }
-
-          if (
-            sortBy ===
-            "oldest"
-          ) {
-            const dateA =
-              new Date(
-                getDateValue(
-                  a
-                ) || 0
-              ).getTime();
-
-            const dateB =
-              new Date(
-                getDateValue(
-                  b
-                ) || 0
-              ).getTime();
-
-            return (
-              dateA - dateB
-            );
-          }
-
           const dateA =
             new Date(
-              getDateValue(
-                a
-              ) || 0
+              a?.updatedAt ||
+                a?.createdAt ||
+                0
             ).getTime();
 
           const dateB =
             new Date(
-              getDateValue(
-                b
-              ) || 0
+              b?.updatedAt ||
+                b?.createdAt ||
+                0
             ).getTime();
 
-          return (
-            dateB - dateA
-          );
+          if (
+            sortBy === "oldest"
+          ) {
+            return dateA - dateB;
+          }
+
+          if (
+            sortBy === "name"
+          ) {
+            return getResumeName(
+              a
+            ).localeCompare(
+              getResumeName(b)
+            );
+          }
+
+          return dateB - dateA;
         }
       );
 
@@ -1275,966 +600,486 @@ export default function Resumes() {
       sortBy,
     ]);
 
-  // ==========================================================
-  // CREATE
-  // ==========================================================
+  /* ----------------------------------------------------------
+     DELETE
+     ---------------------------------------------------------- */
 
-  function handleCreate() {
-    navigate(
-      "/resume"
-    );
-  }
+  const handleDelete =
+    async (id) => {
+      if (!id) {
+        return;
+      }
 
-  // ==========================================================
-  // RENDER
-  // ==========================================================
+      const confirmed =
+        window.confirm(
+          "Are you sure you want to delete this resume?"
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setDeletingId(id);
+        setError("");
+
+        const response =
+          await API.deleteResume(
+            id
+          );
+
+        /* ----------------------------------------------------
+           API.deleteResume() returns an error object instead
+           of throwing when the backend returns an error.
+        ---------------------------------------------------- */
+
+        if (
+          response?.error
+        ) {
+          throw new Error(
+            response.message ||
+              "Unable to delete this resume."
+          );
+        }
+
+        /* ----------------------------------------------------
+           Only remove from UI AFTER successful backend
+           deletion.
+        ---------------------------------------------------- */
+
+        setResumes(
+          (previous) =>
+            previous.filter(
+              (resume) =>
+                String(
+                  getResumeId(
+                    resume
+                  )
+                ) !==
+                String(id)
+            )
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "resumes:changed"
+          )
+        );
+      } catch (err) {
+        console.error(
+          "❌ Delete resume error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Unable to delete this resume."
+        );
+      } finally {
+        setDeletingId(null);
+      }
+    };
+
+  /* ----------------------------------------------------------
+     CREATE
+     ---------------------------------------------------------- */
+
+  const createResume =
+    () => {
+      navigate(
+        "/resume"
+      );
+    };
+
+  /* ----------------------------------------------------------
+     VIEW
+     ---------------------------------------------------------- */
+
+  const viewResume =
+    (id) => {
+      if (!id) {
+        setError(
+          "This resume does not have a valid ID."
+        );
+
+        return;
+      }
+
+      navigate(
+        `/resume?id=${encodeURIComponent(
+          id
+        )}`
+      );
+    };
+
+  /* ----------------------------------------------------------
+     EDIT
+     ---------------------------------------------------------- */
+
+  const editResume =
+    (id) => {
+      if (!id) {
+        setError(
+          "This resume does not have a valid ID."
+        );
+
+        return;
+      }
+
+      navigate(
+        `/resume?id=${encodeURIComponent(
+          id
+        )}&edit=true`
+      );
+    };
+
+  /* ==========================================================
+     UI
+     ========================================================== */
 
   return (
-    <div
-      className="
-        w-full
-        min-h-full
-        px-4
-        pb-10
-        pt-2
-        sm:px-6
-        lg:px-8
-      "
-    >
-      <div className="mx-auto w-full max-w-7xl">
+    <div className="min-h-screen w-full bg-background px-5 py-5 text-foreground sm:px-6 sm:py-6 lg:px-7 lg:py-7">
 
-        {/* ==================================================
-            BACK BUTTON
-        ================================================== */}
+      {/* ======================================================
+          HEADER
+          ====================================================== */}
 
-        <div className="mb-5">
-          <BackButton />
-        </div>
+      <div className="mx-auto w-full max-w-[1180px]">
 
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
 
-        <div
-          className="
-            flex
-            flex-col
-            gap-5
-            lg:flex-row
-            lg:items-end
-            lg:justify-between
-          "
-        >
           <div>
-            <div
-              className="
-                mb-2
-                flex
-                items-center
-                gap-2
-                text-xs
-                font-semibold
-                uppercase
-                tracking-wider
-                text-plum
-              "
-            >
-              <FileText className="h-4 w-4" />
-
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+              <DocumentIcon />
               Resume Workspace
             </div>
 
-            <h1
-              className="
-                text-2xl
-                font-bold
-                tracking-tight
-                text-foreground
-                sm:text-3xl
-              "
-            >
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
               My Resumes
             </h1>
 
-            <p
-              className="
-                mt-2
-                max-w-2xl
-                text-sm
-                leading-relaxed
-                text-muted-foreground
-              "
-            >
-              Manage all your resumes in one
-              place. Create, edit and review
-              different versions for your career
-              opportunities.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+              Manage all your resumes in one place.
+              Create, edit and review different
+              versions for your career opportunities.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={
-              handleCreate
-            }
-            className="
-              inline-flex
-              shrink-0
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              bg-foreground
-              px-5
-              py-3
-              text-sm
-              font-semibold
-              text-background
-              shadow-sm
-              transition-all
-              duration-200
-              hover:-translate-y-0.5
-              hover:shadow-lg
-            "
+            onClick={createResume}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
           >
-            <Plus className="h-4 w-4" />
-
+            <PlusIcon />
             Create New Resume
-
-            <ArrowUpRight className="h-4 w-4" />
+            <ArrowIcon />
           </button>
+
         </div>
 
-        {/* ==================================================
-            QUICK STATS
-        ================================================== */}
+        {/* ====================================================
+            STAT CARDS
+            ==================================================== */}
 
-        <div
-          className="
-            mt-7
-            grid
-            grid-cols-1
-            gap-3
-            sm:grid-cols-3
-          "
-        >
-          {/* Total Resumes */}
+        <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-3">
 
-          <div
-            className="
-              rounded-2xl
-              border
-              border-border
-              bg-background
-              p-4
-              shadow-sm
-            "
-          >
+          {/* TOTAL */}
+
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-secondary
-                  text-foreground
-                "
-              >
-                <FileText className="h-5 w-5" />
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                <DocumentIcon />
               </div>
 
               <div>
-                <div
-                  className="
-                    text-xs
-                    text-muted-foreground
-                  "
-                >
+                <p className="text-xs font-medium text-muted-foreground">
                   Total Resumes
-                </div>
+                </p>
 
-                <div
-                  className="
-                    mt-0.5
-                    text-xl
-                    font-bold
-                    text-foreground
-                  "
-                >
+                <p className="mt-1 text-2xl font-bold text-foreground">
                   {resumes.length}
-                </div>
+                </p>
               </div>
+
             </div>
           </div>
 
           {/* AI */}
 
-          <div
-            className="
-              rounded-2xl
-              border
-              border-border
-              bg-background
-              p-4
-              shadow-sm
-            "
-          >
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-plum/10
-                  text-plum
-                "
-              >
-                <Sparkles className="h-5 w-5" />
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <SparkleIcon />
               </div>
 
               <div>
-                <div
-                  className="
-                    text-xs
-                    text-muted-foreground
-                  "
-                >
+                <p className="text-xs font-medium text-muted-foreground">
                   Career Workspace
-                </div>
+                </p>
 
-                <div
-                  className="
-                    mt-0.5
-                    text-sm
-                    font-bold
-                    text-foreground
-                  "
-                >
+                <p className="mt-1 text-sm font-semibold text-foreground">
                   AI-powered tools
-                </div>
+                </p>
               </div>
+
             </div>
           </div>
 
-          {/* Organization */}
+          {/* MANAGEMENT */}
 
-          <div
-            className="
-              rounded-2xl
-              border
-              border-border
-              bg-background
-              p-4
-              shadow-sm
-            "
-          >
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-secondary
-                  text-foreground
-                "
-              >
-                <LayoutTemplate className="h-5 w-5" />
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                <GridIcon />
               </div>
 
               <div>
-                <div
-                  className="
-                    text-xs
-                    text-muted-foreground
-                  "
-                >
+                <p className="text-xs font-medium text-muted-foreground">
                   Resume Management
-                </div>
+                </p>
 
-                <div
-                  className="
-                    mt-0.5
-                    text-sm
-                    font-bold
-                    text-foreground
-                  "
-                >
+                <p className="mt-1 text-sm font-semibold text-foreground">
                   Keep versions organized
-                </div>
+                </p>
               </div>
+
             </div>
           </div>
+
         </div>
 
-        {/* ==================================================
-            ERROR
-        ================================================== */}
+        {/* ====================================================
+            TOOLBAR
+            ==================================================== */}
 
-        {error && (
-          <div
-            className="
-              mt-6
-              flex
-              items-start
-              gap-3
-              rounded-xl
-              border
-              border-red-200
-              bg-red-50
-              px-4
-              py-3
-              text-sm
-              text-red-700
-            "
-          >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="mt-6 rounded-2xl border border-border bg-card p-3 shadow-sm">
 
-            <div className="min-w-0 flex-1">
-              {error}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+
+            {/* SEARCH */}
+
+            <div className="relative w-full lg:max-w-[380px]">
+
+              <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <SearchIcon />
+              </div>
+
+              <input
+                type="text"
+                value={search}
+                onChange={(event) =>
+                  setSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Search your resumes..."
+                className="h-10 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20"
+              />
+
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                setError(null)
-              }
-              className="
-                shrink-0
-                rounded
-                p-1
-                hover:bg-red-100
-              "
-              aria-label="Dismiss error"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {/* CONTROLS */}
+
+            <div className="flex flex-wrap items-center gap-2">
+
+              <select
+                value={sortBy}
+                onChange={(event) =>
+                  setSortBy(
+                    event.target.value
+                  )
+                }
+                className="h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none"
+              >
+                <option value="recent">
+                  Recently Updated
+                </option>
+
+                <option value="oldest">
+                  Oldest
+                </option>
+
+                <option value="name">
+                  Name
+                </option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMode("grid")
+                }
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
+                  viewMode === "grid"
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-background text-muted-foreground"
+                }`}
+                aria-label="Grid view"
+              >
+                <GridIcon />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMode("list")
+                }
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
+                  viewMode === "list"
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-background text-muted-foreground"
+                }`}
+                aria-label="List view"
+              >
+                <ListIcon />
+              </button>
+
+              <button
+                type="button"
+                disabled={refreshing}
+                onClick={() =>
+                  loadResumes(true)
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+                aria-label="Refresh resumes"
+              >
+                <RefreshIcon />
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* ====================================================
+            ERROR
+            ==================================================== */}
+
+        {error && (
+          <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {error}
           </div>
         )}
 
-        {/* ==================================================
-            SEARCH + CONTROLS
-        ================================================== */}
+        {/* ====================================================
+            RESULT COUNT
+            ==================================================== */}
 
-        <div
-          className="
-            mt-7
-            flex
-            flex-col
-            gap-3
-            rounded-2xl
-            border
-            border-border
-            bg-background
-            p-3
-            shadow-sm
-            sm:flex-row
-            sm:items-center
-            sm:justify-between
-          "
-        >
-          {/* Search */}
+        <div className="mt-7">
 
-          <div
-            className="
-              relative
-              min-w-0
-              flex-1
-              sm:max-w-md
-            "
-          >
-            <Search
-              className="
-                pointer-events-none
-                absolute
-                left-3
-                top-1/2
-                h-4
-                w-4
-                -translate-y-1/2
-                text-muted-foreground
-              "
-            />
+          <h2 className="text-sm font-semibold text-foreground">
+            {displayedResumes.length}{" "}
+            {displayedResumes.length === 1
+              ? "resume"
+              : "resumes"}
+          </h2>
 
-            <input
-              type="text"
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-              placeholder="Search your resumes..."
-              className="
-                h-10
-                w-full
-                rounded-xl
-                border
-                border-border
-                bg-secondary/30
-                pl-9
-                pr-9
-                text-sm
-                text-foreground
-                outline-none
-                transition
-                placeholder:text-muted-foreground
-                focus:border-plum/40
-                focus:bg-background
-                focus:ring-2
-                focus:ring-plum/10
-              "
-            />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Your saved resume versions
+          </p>
 
-            {search && (
-              <button
-                type="button"
-                onClick={() =>
-                  setSearch("")
-                }
-                className="
-                  absolute
-                  right-2
-                  top-1/2
-                  flex
-                  h-7
-                  w-7
-                  -translate-y-1/2
-                  items-center
-                  justify-center
-                  rounded-lg
-                  text-muted-foreground
-                  hover:bg-secondary
-                  hover:text-foreground
-                "
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Controls */}
-
-          <div
-            className="
-              flex
-              items-center
-              gap-2
-            "
-          >
-            <select
-              value={sortBy}
-              onChange={(event) =>
-                setSortBy(
-                  event.target.value
-                )
-              }
-              className="
-                h-10
-                rounded-xl
-                border
-                border-border
-                bg-background
-                px-3
-                text-xs
-                font-medium
-                text-foreground
-                outline-none
-                focus:border-plum/40
-              "
-            >
-              <option value="updated">
-                Recently Updated
-              </option>
-
-              <option value="name">
-                Name
-              </option>
-
-              <option value="oldest">
-                Oldest First
-              </option>
-            </select>
-
-            {/* View switcher */}
-
-            <div
-              className="
-                hidden
-                items-center
-                rounded-xl
-                border
-                border-border
-                p-1
-                sm:flex
-              "
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setViewMode(
-                    "grid"
-                  )
-                }
-                className={`
-                  flex
-                  h-8
-                  w-8
-                  items-center
-                  justify-center
-                  rounded-lg
-                  transition
-                  ${
-                    viewMode ===
-                    "grid"
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }
-                `}
-                title="Grid view"
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setViewMode(
-                    "list"
-                  )
-                }
-                className={`
-                  flex
-                  h-8
-                  w-8
-                  items-center
-                  justify-center
-                  rounded-lg
-                  transition
-                  ${
-                    viewMode ===
-                    "list"
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }
-                `}
-                title="List view"
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Refresh */}
-
-            <button
-              type="button"
-              onClick={load}
-              disabled={loading}
-              className="
-                flex
-                h-10
-                w-10
-                items-center
-                justify-center
-                rounded-xl
-                border
-                border-border
-                text-muted-foreground
-                transition
-                hover:bg-secondary
-                hover:text-foreground
-                disabled:cursor-not-allowed
-                disabled:opacity-50
-              "
-              title="Refresh resumes"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${
-                  loading
-                    ? "animate-spin"
-                    : ""
-                }`}
-              />
-            </button>
-          </div>
         </div>
 
-        {/* ==================================================
-            RESULTS HEADER
-        ================================================== */}
-
-        <div
-          className="
-            mt-7
-            flex
-            items-center
-            justify-between
-          "
-        >
-          <div>
-            <h2
-              className="
-                text-sm
-                font-semibold
-                text-foreground
-              "
-            >
-              {search
-                ? `${filteredResumes.length} result${
-                    filteredResumes.length ===
-                    1
-                      ? ""
-                      : "s"
-                  }`
-                : `${resumes.length} resume${
-                    resumes.length ===
-                    1
-                      ? ""
-                      : "s"
-                  }`}
-            </h2>
-
-            <p
-              className="
-                mt-1
-                text-xs
-                text-muted-foreground
-              "
-            >
-              Your saved resume versions
-            </p>
-          </div>
-
-          {resumes.length >
-            0 && (
-            <button
-              type="button"
-              onClick={
-                handleCreate
-              }
-              className="
-                hidden
-                items-center
-                gap-1.5
-                text-xs
-                font-semibold
-                text-plum
-                transition
-                hover:opacity-80
-                sm:flex
-              "
-            >
-              <Plus className="h-3.5 w-3.5" />
-
-              New Resume
-            </button>
-          )}
-        </div>
-
-        {/* ==================================================
+        {/* ====================================================
             LOADING
-        ================================================== */}
+            ==================================================== */}
 
-        {loading &&
-        resumes.length ===
-          0 ? (
-          <div
-            className="
-              mt-4
-              grid
-              grid-cols-1
-              gap-5
-              md:grid-cols-2
-              xl:grid-cols-3
-            "
-          >
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
+        {loading ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+
+            {[1, 2].map(
+              (item) => (
+                <div
+                  key={item}
+                  className="h-40 animate-pulse rounded-2xl border border-border bg-card"
+                />
+              )
+            )}
+
           </div>
-        ) : filteredResumes.length ===
-          0 ? (
+        ) : displayedResumes.length === 0 ? (
+
           /* ==================================================
              EMPTY STATE
-          ================================================== */
+             ================================================== */
 
-          <div className="mt-4">
-            <EmptyState
-              searching={Boolean(
-                search
-              )}
-              onCreate={
-                handleCreate
-              }
-              onClearSearch={() =>
-                setSearch("")
-              }
-            />
-          </div>
-        ) : viewMode ===
-          "grid" ? (
-          /* ==================================================
-             GRID VIEW
-          ================================================== */
+          <div className="mt-5 flex min-h-[305px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card px-6 text-center">
 
-          <div
-            className="
-              mt-4
-              grid
-              grid-cols-1
-              gap-5
-              md:grid-cols-2
-              xl:grid-cols-3
-            "
-          >
-            {filteredResumes.map(
-              (resume) => {
-                const id =
-                  getResumeId(
-                    resume
-                  );
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <PlusIcon />
+            </div>
 
-                const title =
-                  getResumeTitle(
-                    resume
-                  );
+            <h3 className="mt-5 text-base font-semibold text-foreground">
+              {search
+                ? "No resumes found"
+                : "Your resume workspace is empty"}
+            </h3>
 
-                const template =
-                  getTemplateName(
-                    resume
-                  );
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              {search
+                ? "Try a different search term."
+                : "Create your first professional resume and keep all your versions organized in one place."}
+            </p>
 
-                const date =
-                  getDateValue(
-                    resume
-                  );
-
-                return (
-                  <article
-                    key={id}
-                    className="
-                      group
-                      overflow-visible
-                      rounded-2xl
-                      border
-                      border-border
-                      bg-background
-                      shadow-sm
-                      transition-all
-                      duration-300
-                      hover:-translate-y-1
-                      hover:shadow-xl
-                    "
-                  >
-                    {/* Resume Preview */}
-
-                    <ResumePreview
-                      resume={
-                        resume
-                      }
-                      onPreview={
-                        handleView
-                      }
-                    />
-
-                    {/* Card Content */}
-
-                    <div className="p-4">
-                      <div
-                        className="
-                          flex
-                          items-start
-                          justify-between
-                          gap-3
-                        "
-                      >
-                        <div className="min-w-0">
-                          <h3
-                            className="
-                              truncate
-                              text-sm
-                              font-semibold
-                              text-foreground
-                            "
-                            title={
-                              title
-                            }
-                          >
-                            {title}
-                          </h3>
-
-                          <div
-                            className="
-                              mt-1
-                              flex
-                              items-center
-                              gap-1.5
-                              text-xs
-                              text-muted-foreground
-                            "
-                          >
-                            <LayoutTemplate className="h-3.5 w-3.5" />
-
-                            <span className="truncate">
-                              {template}
-                            </span>
-                          </div>
-                        </div>
-
-                        <ActionMenu
-                          resume={
-                            resume
-                          }
-                          onView={
-                            handleView
-                          }
-                          onEdit={
-                            handleEdit
-                          }
-                          onDelete={
-                            setDeleteTarget
-                          }
-                        />
-                      </div>
-
-                      {/* Date */}
-
-                      <div
-                        className="
-                          mt-4
-                          flex
-                          items-center
-                          gap-1.5
-                          text-[11px]
-                          text-muted-foreground
-                        "
-                      >
-                        <Clock3 className="h-3.5 w-3.5" />
-
-                        <span>
-                          Updated{" "}
-                          {formatDate(
-                            date
-                          )}
-                        </span>
-                      </div>
-
-                      {/* Actions */}
-
-                      <div
-                        className="
-                          mt-4
-                          flex
-                          items-center
-                          gap-2
-                          border-t
-                          border-border
-                          pt-3
-                        "
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleEdit(
-                              resume
-                            )
-                          }
-                          className="
-                            flex
-                            flex-1
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-lg
-                            bg-foreground
-                            px-3
-                            py-2.5
-                            text-xs
-                            font-semibold
-                            text-background
-                            transition
-                            hover:opacity-90
-                          "
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleView(
-                              resume
-                            )
-                          }
-                          className="
-                            flex
-                            h-10
-                            w-10
-                            items-center
-                            justify-center
-                            rounded-lg
-                            border
-                            border-border
-                            text-muted-foreground
-                            transition
-                            hover:bg-secondary
-                            hover:text-foreground
-                          "
-                          title="View Resume"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              }
+            {!search && (
+              <button
+                type="button"
+                onClick={
+                  createResume
+                }
+                className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              >
+                <PlusIcon />
+                Create New Resume
+                <ArrowIcon />
+              </button>
             )}
+
           </div>
+
         ) : (
+
           /* ==================================================
-             LIST VIEW
-          ================================================== */
+             RESUME LIST
+             ================================================== */
 
           <div
-            className="
-              mt-4
-              overflow-visible
-              rounded-2xl
-              border
-              border-border
-              bg-background
-              shadow-sm
-            "
+            className={
+              viewMode === "grid"
+                ? "mt-5 grid gap-4 md:grid-cols-2"
+                : "mt-5 flex flex-col gap-3"
+            }
           >
-            {filteredResumes.map(
-              (
-                resume,
-                index
-              ) => {
-                const id =
-                  getResumeId(
+
+            {displayedResumes.map(
+              (resume) => {
+
+                const name =
+                  getResumeName(
                     resume
                   );
 
-                const title =
-                  getResumeTitle(
+                const role =
+                  getResumeRole(
                     resume
                   );
 
                 const template =
                   getTemplateName(
+                    resume
+                  );
+
+                const updated =
+                  getUpdatedDate(
+                    resume
+                  );
+
+                const id =
+                  getResumeId(
                     resume
                   );
 
@@ -2242,160 +1087,122 @@ export default function Resumes() {
                   <div
                     key={
                       id ||
-                      `${title}-${index}`
+                      `${name}-${updated}`
                     }
-                    className="
-                      flex
-                      flex-col
-                      gap-4
-                      border-b
-                      border-border
-                      p-4
-                      last:border-b-0
-                      sm:flex-row
-                      sm:items-center
-                    "
+                    className={`group rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md ${
+                      viewMode ===
+                      "list"
+                        ? "p-4"
+                        : "p-5"
+                    }`}
                   >
-                    {/* Icon */}
 
-                    <div
-                      className="
-                        flex
-                        h-14
-                        w-12
-                        shrink-0
-                        items-center
-                        justify-center
-                        rounded-xl
-                        bg-secondary
-                        text-muted-foreground
-                      "
-                    >
-                      <FileText className="h-6 w-6" />
-                    </div>
+                    <div className="flex items-start gap-4">
 
-                    {/* Information */}
+                      {/* DOCUMENT ICON */}
 
-                    <div className="min-w-0 flex-1">
-                      <h3
-                        className="
-                          truncate
-                          text-sm
-                          font-semibold
-                          text-foreground
-                        "
-                      >
-                        {title}
-                      </h3>
-
-                      <div
-                        className="
-                          mt-1
-                          flex
-                          flex-wrap
-                          items-center
-                          gap-2
-                          text-xs
-                          text-muted-foreground
-                        "
-                      >
-                        <span>
-                          {template}
-                        </span>
-
-                        <span>
-                          •
-                        </span>
-
-                        <span>
-                          {formatDate(
-                            getDateValue(
-                              resume
-                            )
-                          )}
-                        </span>
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <DocumentIcon />
                       </div>
+
+                      {/* CONTENT */}
+
+                      <div className="min-w-0 flex-1">
+
+                        <div className="flex items-start justify-between gap-3">
+
+                          <div className="min-w-0">
+
+                            <h3 className="truncate text-base font-semibold text-foreground">
+                              {resume?.title ||
+                                name}
+                            </h3>
+
+                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                              {role}
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+
+                          <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                            {template}
+                          </span>
+
+                          {updated && (
+                            <span className="text-xs text-muted-foreground">
+                              Updated{" "}
+                              {updated}
+                            </span>
+                          )}
+
+                        </div>
+
+                        {/* ACTIONS */}
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              viewResume(
+                                id
+                              )
+                            }
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:bg-muted"
+                          >
+                            <EyeIcon />
+                            View
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              editResume(
+                                id
+                              )
+                            }
+                            className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+                          >
+                            <EditIcon />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              deletingId ===
+                              id
+                            }
+                            onClick={() =>
+                              handleDelete(
+                                id
+                              )
+                            }
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-destructive transition hover:bg-destructive/5 disabled:opacity-50"
+                          >
+                            <TrashIcon />
+
+                            {deletingId ===
+                            id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+
+                        </div>
+
+                      </div>
+
                     </div>
 
-                    {/* Actions */}
-
-                    <div
-                      className="
-                        flex
-                        items-center
-                        gap-2
-                      "
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleEdit(
-                            resume
-                          )
-                        }
-                        className="
-                          inline-flex
-                          items-center
-                          gap-2
-                          rounded-lg
-                          bg-foreground
-                          px-3
-                          py-2
-                          text-xs
-                          font-semibold
-                          text-background
-                        "
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleView(
-                            resume
-                          )
-                        }
-                        className="
-                          flex
-                          h-9
-                          w-9
-                          items-center
-                          justify-center
-                          rounded-lg
-                          border
-                          border-border
-                          text-muted-foreground
-                          transition
-                          hover:bg-secondary
-                          hover:text-foreground
-                        "
-                        title="View"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-
-                      <ActionMenu
-                        resume={
-                          resume
-                        }
-                        onView={
-                          handleView
-                        }
-                        onEdit={
-                          handleEdit
-                        }
-                        onDelete={
-                          setDeleteTarget
-                        }
-                      />
-                    </div>
                   </div>
                 );
               }
             )}
+
           </div>
         )}
 
