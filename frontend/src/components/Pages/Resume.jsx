@@ -1235,19 +1235,19 @@ education:
         splitList(form.skills),
 
       experience:
-  uploaded?.experience?.length
-    ? uploaded.experience
-    : String(form.experience || "").trim(),
+        Array.isArray(form.experience) && form.experience.length
+          ? form.experience
+          : String(form.experience || "").trim(),
 
-projects:
-  uploaded?.projects?.length
-    ? uploaded.projects
-    : String(form.projects || "").trim(),
+      projects:
+        Array.isArray(form.projects) && form.projects.length
+          ? form.projects
+          : String(form.projects || "").trim(),
 
-education:
-  uploaded?.education?.length
-    ? uploaded.education
-    : String(form.education || "").trim(),
+      education:
+        Array.isArray(form.education) && form.education.length
+          ? form.education
+          : String(form.education || "").trim(),
 
 
       certifications:

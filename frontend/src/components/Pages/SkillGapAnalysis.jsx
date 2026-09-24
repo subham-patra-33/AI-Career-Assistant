@@ -110,6 +110,8 @@ export default function SkillGapAnalysis() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
+  const lastSubmitRef = useRef(0);
+  const clientCacheRef = useRef(new Map());
 
   const [targetRole, setTargetRole] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("Student / Fresher");
@@ -231,6 +233,15 @@ export default function SkillGapAnalysis() {
   }
 
   async function analyzeSkillGap() {
+    if (loading) return;
+
+    // Debounce rapid successive submissions (2 second window)
+    const now = Date.now();
+    if (now - lastSubmitRef.current < 2000) {
+      return;
+    }
+    lastSubmitRef.current = now;
+
     if (!isAuthed()) {
       setError("Please log in before using Skill Gap Analysis.");
       return;
@@ -246,10 +257,19 @@ export default function SkillGapAnalysis() {
       return;
     }
 
+    const cacheKey = `${targetRole.trim().toLowerCase()}|${experienceLevel}|${selectedFile ? selectedFile.name + selectedFile.size : resumeText.trim().slice(0, 300)}`;
+    if (clientCacheRef.current.has(cacheKey)) {
+      const cached = clientCacheRef.current.get(cacheKey);
+      setAnalysis(cached.normalized);
+      if (cached.analysisId) setAnalysisId(cached.analysisId);
+      if (cached.resumeId) setResumeId(cached.resumeId);
+      setSuccess("Skill gap analysis loaded from cache.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setSuccess("");
-    setAnalysis(EMPTY_RESULT);
 
     try {
       const formData = new FormData();
@@ -288,6 +308,12 @@ export default function SkillGapAnalysis() {
       setAnalysisId(payload?.analysisId || normalized?.analysisId || null);
 
       if (payload?.resumeId) setResumeId(payload.resumeId);
+
+      clientCacheRef.current.set(cacheKey, {
+        normalized,
+        analysisId: payload?.analysisId || normalized?.analysisId || null,
+        resumeId: payload?.resumeId,
+      });
 
       setSuccess(
         "Skill gap analysis completed and saved to your account."
