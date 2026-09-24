@@ -12,6 +12,21 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+const mongoose = require('mongoose');
+const { connectDB } = require('./config/db');
+
+// Ensure DB connected on demand (essential for serverless & robust for web services)
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState !== 1 && process.env.MONGO_URI) {
+    try {
+      await connectDB();
+    } catch (e) {
+      console.warn("DB on-demand connection warning:", e.message);
+    }
+  }
+  next();
+});
+
 // ===== ROUTES =====
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/resumes', require('./routes/resumes'));
