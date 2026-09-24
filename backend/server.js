@@ -1,16 +1,25 @@
 /* ============================================================
    SERVER ENTRY POINT
    ============================================================ */
+const dns = require("dns");
+
+dns.setServers([
+  "8.8.8.8",
+  "1.1.1.1"
+]);
+
 
 require("dotenv").config();
 
+const mongoose = require("mongoose");
 const app = require("./src/app");
 const { connectDB } = require("./src/config/db");
+const questionBankService = require("./src/services/questionBankService");
 
 const PORT = Number(process.env.PORT || 4000);
 
 /* ============================================================
-   START HTTP SERVER FIRST
+   START HTTP SERVER
    ============================================================ */
 
 const server = app.listen(PORT, () => {
@@ -27,37 +36,47 @@ const server = app.listen(PORT, () => {
    DATABASE CONNECTION
    ============================================================ */
 
-async function connectDatabase() {
-  try {
-    console.log("📡 Connecting to MongoDB...");
+let isConnecting = false;
 
+async function connectDatabase() {
+  // Already connected
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  // Connection already being attempted
+  if (isConnecting) {
+    return;
+  }
+
+  isConnecting = true;
+
+  try {
     await connectDB();
 
     console.log("✅ MongoDB connected successfully.");
+    questionBankService.ensureSeedData().catch((e) => {
+      console.warn("Auto-seed warning:", e.message);
+    });
+
   } catch (error) {
     console.error("");
     console.error("⚠️ MongoDB connection failed.");
-
     console.error(
       "MongoDB error:",
       error?.message || error
     );
-
     console.error("");
-
     console.error(
-      "ℹ️ The API server will remain running."
+      "ℹ️ API server will remain running."
     );
-
-    console.error(
-      "ℹ️ Live job recommendations do not require MongoDB."
-    );
-
     console.error(
       "ℹ️ MongoDB will be retried automatically."
     );
-
     console.error("");
+
+  } finally {
+    isConnecting = false;
   }
 }
 
@@ -82,18 +101,11 @@ setInterval(() => {
    ============================================================ */
 
 server.on("error", (error) => {
-  console.error(
-    "❌ HTTP server error:",
-    error
-  );
+  console.error("❌ HTTP server error:", error);
 
   if (error.code === "EADDRINUSE") {
     console.error(
       `❌ Port ${PORT} is already being used.`
-    );
-
-    console.error(
-      "ℹ️ Stop the other backend process or use a different PORT."
     );
   }
 });
@@ -104,25 +116,13 @@ server.on("error", (error) => {
 
 const shutdown = (signal) => {
   console.log("");
-  console.log(
-    `🛑 ${signal} received. Shutting down...`
-  );
+  console.log(`🛑 ${signal} received. Shutting down...`);
 
   server.close(() => {
-    console.log(
-      "✅ HTTP server closed."
-    );
-
+    console.log("✅ HTTP server closed.");
     process.exit(0);
   });
 };
 
-process.on(
-  "SIGINT",
-  () => shutdown("SIGINT")
-);
-
-process.on(
-  "SIGTERM",
-  () => shutdown("SIGTERM")
-);
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

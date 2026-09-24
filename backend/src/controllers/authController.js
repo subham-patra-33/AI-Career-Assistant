@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const config = require('../config');
+const { logActivity, ACTIVITY_TYPES } = require('../services/activityService');
 
 // POST /api/auth/register
 async function register(req, res) {
@@ -34,6 +35,8 @@ async function register(req, res) {
       username: normalizedUsername,
       passwordHash: hashedPassword,
     });
+
+    logActivity(user._id, ACTIVITY_TYPES.STUDENT_REGISTERED, 'auth');
 
     const token = jwt.sign({ id: user._id }, config.jwtSecret, { expiresIn: '7d' });
 
@@ -74,6 +77,8 @@ async function login(req, res) {
 
     // Update lastLogin WITHOUT triggering pre-save hook (use updateOne directly)
     await User.updateOne({ _id: user._id }, { lastLogin: new Date() });
+
+    logActivity(user._id, ACTIVITY_TYPES.STUDENT_LOGIN, 'auth');
 
     const token = jwt.sign({ id: user._id }, config.jwtSecret, { expiresIn: '7d' });
 

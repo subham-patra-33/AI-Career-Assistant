@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-
 import {
   BrowserRouter,
   Routes,
@@ -8,7 +7,7 @@ import {
 } from "react-router-dom";
 
 // ============================================================
-// LAYOUT
+// LAYOUT COMPONENTS
 // ============================================================
 
 import Navbar from "./components/Pages/Navbar";
@@ -28,51 +27,45 @@ import Dashboard from "./components/Pages/Dashboard";
 import Resume from "./components/Pages/Resume";
 import Resumes from "./components/Pages/Resumes";
 import TotalResumes from "./components/Pages/TotalResumes";
-
-// ============================================================
-// RESUME AI TOOLS
-// ============================================================
-
+import Templates from "./components/Pages/Templates";
+import Template from "./components/Pages/Template";
+import TemplateBuilder from "./components/Pages/TemplateBuilder";
 import AiSuggestions from "./components/Pages/AiSuggestions";
 
 // ============================================================
-// CAREER ASSISTANT PAGES
+// CAREER ANALYSIS & TOOLS
 // ============================================================
 
 import SkillGapAnalysis from "./components/Pages/SkillGapAnalysis";
 import CareerRecommendations from "./components/Pages/CareerRecommendations";
 import RecommendedSkills from "./components/Pages/RecommendedSkills";
+import JobMatch from "./components/Pages/JobMatch";
+import ATS from "./components/Pages/ATS";
+
+// ============================================================
+// JOBS & INTERVIEW
+// ============================================================
+
 import JobRecommendations from "./components/Pages/JobRecommendations";
 import SavedJobs from "./components/Pages/SavedJobs";
 import AiMockInterview from "./components/Pages/AiMockInterview";
 import CareerProgress from "./components/Pages/CareerProgress";
 
 // ============================================================
-// OTHER TOOLS
-// ============================================================
-
-import JobMatch from "./components/Pages/JobMatch";
-import ATS from "./components/Pages/ATS";
-
-// ============================================================
-// TEMPLATES
-// ============================================================
-
-import Templates from "./components/Pages/Templates";
-import Template from "./components/Pages/Template";
-import TemplateBuilder from "./components/Pages/TemplateBuilder";
-
-// ============================================================
-// SETTINGS
+// SETTINGS, ADMIN & AUTH
 // ============================================================
 
 import Settings from "./components/Pages/Settings";
+<<<<<<< HEAD
 
+=======
+import Admin from "./components/Pages/Admin";
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
 import Login from "./components/Pages/Login";
 import Register from "./components/Pages/Register";
 
-
 // ============================================================
+<<<<<<< HEAD
 // HOME LAYOUT
 // ============================================================
 <<<<<<< HEAD
@@ -216,586 +209,399 @@ function AppRoutes() {
 // Do NOT use md:ml-64 here.
 // Use md:pl-64 so the content width remains 100%.
 >>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
+=======
+// SAAS APP LAYOUT (SIDEBAR + TOP NAVBAR + MAIN CONTENT)
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
 // ============================================================
 
-function HomeLayout() {
-
-  // ==========================================================
-  // MOBILE SIDEBAR STATE
-  // ==========================================================
-
-  const [
-    mobileSidebarOpen,
-    setMobileSidebarOpen,
-  ] = useState(false);
+function AppLayout({ children }) {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div
-      className="
-        relative
-        min-h-screen
-        w-full
-
-        overflow-x-hidden
-
-        bg-background
-        text-foreground
-      "
-    >
-
-      {/* ======================================================
-          SIDEBAR
-
-          Sidebar is already fixed internally.
-          Do NOT wrap it inside another fixed <aside>.
-      ====================================================== */}
-
+    <div className="relative min-h-screen w-full overflow-x-hidden bg-background text-foreground">
+      {/* SIDEBAR */}
       <Sidebar
         mobileOpen={mobileSidebarOpen}
         setMobileOpen={setMobileSidebarOpen}
       />
 
-
-      {/* ======================================================
-          MAIN APPLICATION AREA
-      ====================================================== */}
-
-      <div
-        className="
-          relative
-
-          min-h-screen
-          w-full
-
-          overflow-x-hidden
-
-          md:pl-64
-        "
-      >
-
-        {/* ====================================================
-            NAVBAR
-        ==================================================== */}
-
+      {/* MAIN CONTAINER */}
+      <div className="relative min-h-screen w-full overflow-x-hidden pl-0 md:pl-[var(--sidebar-width,256px)] transition-[padding-left] duration-200">
+        {/* PAGE-AWARE TOP NAVBAR */}
         <Navbar
           mobileOpen={mobileSidebarOpen}
           setMobileOpen={setMobileSidebarOpen}
         />
 
-
-        {/* ====================================================
-            HOME CONTENT
-        ==================================================== */}
-
-        <main
-          className="
-            relative
-
-            min-h-screen
-            w-full
-
-            overflow-x-hidden
-
-            pt-[76px]
-          "
-        >
-
-          <Home />
-
+        {/* PAGE CONTENT */}
+        <main className="relative min-h-screen w-full overflow-x-hidden pt-16">
+          {children}
         </main>
-
       </div>
-
     </div>
   );
 }
 
-
-// ============================================================
-// NORMAL PAGE WRAPPER
-// ============================================================
-//
-// These pages intentionally have:
-// - No Sidebar
-// - No Navbar
-//
-// They remain completely independent/full-screen pages.
-// ============================================================
-
-function NormalLayout({
-  children,
-}) {
-
+// Backward-compatible alias
+function HomeLayout() {
   return (
-    <div
-      className="
-        min-h-screen
-        w-full
-        max-w-full
+    <AppLayout>
+      <Home />
+    </AppLayout>
+  );
+}
 
-        overflow-x-hidden
-
-        bg-background
-        text-foreground
-      "
-    >
-
-      <main
-        className="
-          min-h-screen
-          w-full
-          max-w-full
-
-          overflow-x-hidden
-        "
-      >
+// Fullscreen layout for Login/Register
+function NormalLayout({ children }) {
+  return (
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-background text-foreground">
+      <main className="min-h-screen w-full max-w-full overflow-x-hidden">
         {children}
       </main>
-
     </div>
   );
 }
-
 
 // ============================================================
 // APPLICATION ROUTES
 // ============================================================
 
 function AppRoutes() {
-
   return (
     <Routes>
-
-      {/* ======================================================
-          LOGIN
-      ====================================================== */}
-
+      {/* AUTH */}
       <Route
         path="/"
         element={
-          <Login />
+          <NormalLayout>
+            <Login />
+          </NormalLayout>
         }
       />
-
-
-      {/* ======================================================
-          REGISTER
-      ====================================================== */}
-
       <Route
         path="/register"
         element={
-          <Register />
+          <NormalLayout>
+            <Register />
+          </NormalLayout>
         }
       />
 
-
-      {/* ======================================================
-          HOME
-      ====================================================== */}
-
+      {/* HOME (AI CAREER ASSISTANT LANDING) */}
       <Route
         path="/home"
         element={
-          <HomeLayout />
+          <AppLayout>
+            <Home />
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          DASHBOARD
-      ====================================================== */}
-
+      {/* DASHBOARD / COMMAND CENTER */}
       <Route
         path="/db"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Dashboard />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/dashboard"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Dashboard />
-          </NormalLayout>
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          RESUME BUILDER
-      ====================================================== */}
-
+      {/* RESUME */}
       <Route
         path="/resume"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Resume />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/create-resume"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Resume />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
-
-      {/* ======================================================
-          MY RESUMES
-      ====================================================== */}
-
       <Route
         path="/resumes"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Resumes />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/my-resumes"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Resumes />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/total-resumes"
         element={
-          <NormalLayout>
+          <AppLayout>
             <TotalResumes />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
-
-      {/* ======================================================
-          RESUME TEMPLATES
-      ====================================================== */}
-
       <Route
         path="/templates"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Templates />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/resume-templates"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Templates />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/template"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Template />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/template-builder"
         element={
-          <NormalLayout>
+          <AppLayout>
             <TemplateBuilder />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
-
-      {/* ======================================================
-          AI RESUME SUGGESTIONS
-      ====================================================== */}
-
       <Route
         path="/ai-suggestions"
         element={
-          <NormalLayout>
+          <AppLayout>
             <AiSuggestions />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/resume-suggestions"
         element={
-          <NormalLayout>
+          <AppLayout>
             <AiSuggestions />
-          </NormalLayout>
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          AI JOB MATCH
-      ====================================================== */}
-
-      <Route
-        path="/job-match"
-        element={
-          <NormalLayout>
-            <JobMatch />
-          </NormalLayout>
-        }
-      />
-
-      <Route
-        path="/ai-job-match"
-        element={
-          <NormalLayout>
-            <JobMatch />
-          </NormalLayout>
-        }
-      />
-
-
-      {/* ======================================================
-          SKILL GAP ANALYSIS
-      ====================================================== */}
-
+      {/* CAREER ANALYSIS */}
       <Route
         path="/skill-gap"
         element={
-          <NormalLayout>
+          <AppLayout>
             <SkillGapAnalysis />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/skill-gap-analysis"
         element={
-          <NormalLayout>
+          <AppLayout>
             <SkillGapAnalysis />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
-
-      {/* ======================================================
-          CAREER RECOMMENDATIONS
-      ====================================================== */}
-
       <Route
         path="/career-recommendations"
         element={
-          <NormalLayout>
+          <AppLayout>
             <CareerRecommendations />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/career-recommendation"
         element={
-          <NormalLayout>
+          <AppLayout>
             <CareerRecommendations />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
-
-      {/* ======================================================
-          ATS CHECKER
-      ====================================================== */}
-
-      <Route
-        path="/ats"
-        element={
-          <NormalLayout>
-            <ATS />
-          </NormalLayout>
-        }
-      />
-
-      <Route
-        path="/ats-checker"
-        element={
-          <NormalLayout>
-            <ATS />
-          </NormalLayout>
-        }
-      />
-
-
-      {/* ======================================================
-          RECOMMENDED SKILLS
-      ====================================================== */}
-
       <Route
         path="/recommended-skills"
         element={
-          <NormalLayout>
+          <AppLayout>
             <RecommendedSkills />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/recommended-skill"
         element={
-          <NormalLayout>
+          <AppLayout>
             <RecommendedSkills />
-          </NormalLayout>
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          JOB RECOMMENDATIONS
-      ====================================================== */}
-
+      {/* JOB TOOLS */}
       <Route
-        path="/job-recommendations"
+        path="/ats"
         element={
-          <NormalLayout>
-            <JobRecommendations />
-          </NormalLayout>
+          <AppLayout>
+            <ATS />
+          </AppLayout>
         }
       />
-
       <Route
-        path="/job-recommendation"
+        path="/ats-checker"
         element={
-          <NormalLayout>
-            <JobRecommendations />
-          </NormalLayout>
+          <AppLayout>
+            <ATS />
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/job-match"
+        element={
+          <AppLayout>
+            <JobMatch />
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/ai-job-match"
+        element={
+          <AppLayout>
+            <JobMatch />
+          </AppLayout>
         }
       />
 
+      {/* JOBS */}
       <Route
         path="/jobs"
         element={
-          <NormalLayout>
+          <AppLayout>
             <JobRecommendations />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
-
-      {/* ======================================================
-          SAVED JOBS
-      ====================================================== */}
-
+      <Route
+        path="/job-recommendations"
+        element={
+          <AppLayout>
+            <JobRecommendations />
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/job-recommendation"
+        element={
+          <AppLayout>
+            <JobRecommendations />
+          </AppLayout>
+        }
+      />
       <Route
         path="/saved-jobs"
         element={
-          <NormalLayout>
+          <AppLayout>
             <SavedJobs />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/saved-job"
         element={
-          <NormalLayout>
+          <AppLayout>
             <SavedJobs />
-          </NormalLayout>
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          AI MOCK INTERVIEW
-      ====================================================== */}
-
-      <Route
-        path="/ai-mock-interview"
-        element={
-          <NormalLayout>
-            <AiMockInterview />
-          </NormalLayout>
-        }
-      />
-
+      {/* INTERVIEW */}
       <Route
         path="/mock-interview"
         element={
-          <NormalLayout>
+          <AppLayout>
             <AiMockInterview />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
+      <Route
+        path="/ai-mock-interview"
+        element={
+          <AppLayout>
+            <AiMockInterview />
+          </AppLayout>
+        }
+      />
       <Route
         path="/interview"
         element={
-          <NormalLayout>
+          <AppLayout>
             <AiMockInterview />
-          </NormalLayout>
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          CAREER PROGRESS
-      ====================================================== */}
-
+      {/* CAREER PROGRESS */}
       <Route
         path="/career-progress"
         element={
-          <NormalLayout>
+          <AppLayout>
             <CareerProgress />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/progress"
         element={
-          <NormalLayout>
+          <AppLayout>
             <CareerProgress />
-          </NormalLayout>
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          SETTINGS
-      ====================================================== */}
-
+      {/* SETTINGS & ADMIN */}
       <Route
         path="/setting"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Settings />
-          </NormalLayout>
+          </AppLayout>
         }
       />
-
       <Route
         path="/settings"
         element={
-          <NormalLayout>
+          <AppLayout>
             <Settings />
-          </NormalLayout>
+          </AppLayout>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AppLayout>
+            <Admin />
+          </AppLayout>
         }
       />
 
-
-      {/* ======================================================
-          FALLBACK
-      ====================================================== */}
-
+      {/* FALLBACK */}
       <Route
         path="*"
         element={
@@ -805,23 +611,14 @@ function AppRoutes() {
           />
         }
       />
-
     </Routes>
   );
 }
 
-
-// ============================================================
-// APP
-// ============================================================
-
 export default function App() {
-
   return (
     <BrowserRouter>
-
       <AppRoutes />
-
     </BrowserRouter>
   );
 }

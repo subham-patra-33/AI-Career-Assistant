@@ -27,6 +27,7 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Password is required'],
       select: false,
     },
+<<<<<<< HEAD
   role: {
   type: String,
   enum: ['user', 'admin'],
@@ -38,6 +39,17 @@ isActive: {
   default: true,
 },
   
+=======
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
     lastLogin: {
       type: Date,
       default: null,

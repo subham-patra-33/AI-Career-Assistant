@@ -105,6 +105,7 @@ function ActivityBars({ items, emptyMessage }) {
 function Admin() {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
+<<<<<<< HEAD
 const [stats, setStats] = useState({
   totalUsers: 0,
   totalAdmins: 0,
@@ -153,6 +154,70 @@ const [roleFilter, setRoleFilter] = useState("all");
       }
     }
     load();
+=======
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalStudents: 0,
+    totalAdmins: 0,
+    totalNormalUsers: 0,
+    activeUsers: 0,
+    inactiveUsers: 0,
+    totalResumes: 0,
+    totalLogins: 0,
+    resumesCreated: 0,
+    atsUsage: 0,
+    jobMatchUsage: 0,
+    aiInterviewUsage: 0,
+    aiInterviewCompleted: 0,
+    questionBankUsage: 0,
+    questionBankCompleted: 0,
+    careerAssistantUsage: 0,
+    skillGapUsage: 0,
+    analytics: {
+      userGrowth: [],
+      resumeGrowth: [],
+      roleDistribution: [],
+      mostActiveUsers: [],
+      templateUsage: [],
+    },
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+
+  const loadData = async () => {
+    const token = getToken();
+    if (!token) {
+      navigate("/");
+      return;
+    }
+    try {
+      setLoading(true);
+      const [usersRes, statsRes] = await Promise.all([
+        fetch(`${API_URL}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      if (usersRes.status === 403 || statsRes.status === 403) {
+        setError("You don't have admin access.");
+        setLoading(false);
+        return;
+      }
+
+      setUsers(await usersRes.json());
+      setStats(await statsRes.json());
+      setError("");
+    } catch (err) {
+      setError("Failed to load admin data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
   }, [navigate]);
 const filteredUsers = users.filter((u) => {
   const searchText = search.toLowerCase().trim();
@@ -242,7 +307,104 @@ const filteredUsers = users.filter((u) => {
   </div>
 
 </div>
+<<<<<<< HEAD
 {/* ANALYTICS */}
+=======
+
+{/* PLATFORM FEATURE USAGE ANALYTICS */}
+<div className="mb-6">
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+    <div>
+      <p className="text-xs font-bold uppercase tracking-[0.14em] muted">
+        Platform Activity
+      </p>
+      <h2 className="text-xl font-display font-bold mt-1">
+        Feature Usage & Student Actions
+      </h2>
+      <p className="muted text-xs mt-0.5">
+        Live database counters tracking student feature engagements in real-time.
+      </p>
+    </div>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={loadData}
+        className="rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-black/[0.04] transition inline-flex items-center gap-1.5"
+        style={{ borderColor: "var(--color-border)" }}
+      >
+        <span>↻</span> Refresh Live Stats
+      </button>
+      <div className="stamp stamp-teal">Real-time DB</div>
+    </div>
+  </div>
+
+  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">Total Students</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : (stats.totalStudents ?? stats.totalNormalUsers ?? 0)}
+      </p>
+      <p className="muted text-[11px] mt-1">Registered non-admin students</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">Login Count</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : (stats.totalLogins ?? 0)}
+      </p>
+      <p className="muted text-[11px] mt-1">Successful student logins</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">Resume Creation</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : (stats.resumesCreated ?? stats.totalResumes ?? 0)}
+      </p>
+      <p className="muted text-[11px] mt-1">Total created resumes</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">ATS Usage</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : (stats.atsUsage ?? 0)}
+      </p>
+      <p className="muted text-[11px] mt-1">ATS resume evaluations</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">Job Match Usage</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : (stats.jobMatchUsage ?? 0)}
+      </p>
+      <p className="muted text-[11px] mt-1">Job description match runs</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">AI Interview</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : `${stats.aiInterviewUsage ?? 0} started / ${stats.aiInterviewCompleted ?? 0} done`}
+      </p>
+      <p className="muted text-[11px] mt-1">AI Mock Interview sessions</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">Question Bank</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : `${stats.questionBankUsage ?? 0} started / ${stats.questionBankCompleted ?? 0} done`}
+      </p>
+      <p className="muted text-[11px] mt-1">Question bank practice sessions</p>
+    </div>
+
+    <div className="card p-4">
+      <p className="muted text-xs uppercase tracking-wider font-semibold">Skill Gap / Career AI</p>
+      <p className="text-2xl font-display font-bold mt-1">
+        {loading ? "—" : `${stats.skillGapUsage ?? 0} / ${stats.careerAssistantUsage ?? 0}`}
+      </p>
+      <p className="muted text-[11px] mt-1">Skill Gap & Career Assistant runs</p>
+    </div>
+  </div>
+</div>
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
 
 {/* ANALYTICS */}
 
@@ -786,6 +948,13 @@ const filteredUsers = users.filter((u) => {
           </th>
 
           <th className="text-left px-5 py-3 text-xs uppercase tracking-wider muted font-bold">
+<<<<<<< HEAD
+=======
+            Last Login
+          </th>
+
+          <th className="text-left px-5 py-3 text-xs uppercase tracking-wider muted font-bold">
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
             Joined
           </th>
 
@@ -805,7 +974,11 @@ const filteredUsers = users.filter((u) => {
           <tr>
             <td
               className="px-5 py-8 muted text-center"
+<<<<<<< HEAD
               colSpan={5}
+=======
+              colSpan={6}
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
             >
               Loading users…
             </td>
@@ -817,7 +990,11 @@ const filteredUsers = users.filter((u) => {
 
             <td
               className="px-5 py-10 text-center"
+<<<<<<< HEAD
               colSpan={5}
+=======
+              colSpan={6}
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
             >
 
               <div className="muted text-sm">
@@ -937,6 +1114,34 @@ const filteredUsers = users.filter((u) => {
 
               </td>
 
+<<<<<<< HEAD
+=======
+              {/* LAST LOGIN */}
+
+              <td className="px-5 py-4">
+
+                <div>
+
+                  <p className="text-sm">
+                    {u.lastLogin
+                      ? new Date(
+                          u.lastLogin
+                        ).toLocaleDateString(
+                          undefined,
+                          {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          }
+                        )
+                      : "Never"}
+                  </p>
+
+                </div>
+
+              </td>
+
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
 
               {/* JOINED */}
 

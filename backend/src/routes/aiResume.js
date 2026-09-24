@@ -14,6 +14,10 @@ const {
   generateSuggestions,
   generateGeminiJSON,
 } = require("../utils/gemini");
+const aiService = require("../services/aiService");
+const questionBankService = require("../services/questionBankService");
+const InterviewSession = require("../models/InterviewSession");
+const { logActivity, ACTIVITY_TYPES } = require("../services/activityService");
 
 router.use(auth);
 
@@ -689,6 +693,11 @@ router.post(
           "✅ New resume saved in MongoDB:",
           savedResume._id.toString()
         );
+
+        logActivity(req.userId, ACTIVITY_TYPES.RESUME_CREATED, "resume", {
+          resumeId: savedResume._id,
+          templateId,
+        });
       }
 
       return res.status(resumeId ? 200 : 201).json({
@@ -758,49 +767,43 @@ router.post(
 // ============================================================
 
 router.post(
-  "/mock-interview/start",
+  ["/mock-interview", "/mock-interview/start"],
   async (req, res) => {
     try {
-      const prompt = `
-Create a realistic mock interview for this candidate.
-Return ONLY JSON.
-Generate 5 concise questions suitable for the target role.
+      const mode = (req.body?.mode || "").toLowerCase();
 
-Candidate:
-${JSON.stringify(req.body || {}).slice(0, 30000)}
-`;
+      if (mode === "question-bank") {
+        // Question Bank mode: Curated role-based questions without AI API (Section 1, 2, 4)
+        const response = await questionBankService.selectQuestions({
+          ...req.body,
+          userId: req.userId,
+        });
+        logActivity(req.userId, ACTIVITY_TYPES.QUESTION_BANK_INTERVIEW_STARTED, "interview", {
+          role: req.body?.role,
+          difficulty: req.body?.difficulty,
+        });
+        return res.json(response);
+      }
 
-      const result =
-        await generateGeminiJSON(
-          prompt,
-          {
-            type: "object",
-            properties: {
-              questions: {
-                type: "array",
-                items: { type: "string" },
-              },
-            },
-            required: ["questions"],
-          },
-          { temperature: 0.4, timeout: 60000 }
-        );
-
+      // AI mode (default): Gemini with Grok fallback
+      const response = await aiService.generateInterviewQuestions(req.body || {});
+      logActivity(req.userId, ACTIVITY_TYPES.AI_MOCK_INTERVIEW_STARTED, "interview", {
+        role: req.body?.role,
+        difficulty: req.body?.difficulty,
+      });
       return res.json({
-        success: true,
-        interview: result,
+        ...response,
+        mode: "ai",
       });
     } catch (error) {
-      console.error(
-        "❌ Mock Interview Error:",
-        error
-      );
+      console.error("❌ Mock Interview Error:", error);
 
-      return res.status(500).json({
+      const status = error.status || 500;
+      return res.status(status).json({
         success: false,
-        error:
-          error?.message ||
-          "Mock interview generation failed",
+        code: error.code || "MOCK_INTERVIEW_ERROR",
+        error: error.message || "Mock interview generation failed",
+        message: error.message || "Mock interview generation failed",
       });
     }
   }
@@ -811,73 +814,113 @@ ${JSON.stringify(req.body || {}).slice(0, 30000)}
 // ============================================================
 
 router.post(
-  "/mock-interview/evaluate",
+  ["/evaluate-interview", "/mock-interview/evaluate"],
   async (req, res) => {
     try {
-      const { question, answer } =
-        req.body || {};
+      const mode = (req.body?.mode || "").toLowerCase();
 
-      if (!question || !answer) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Both interview question and candidate answer are required.",
+      if (mode === "question-bank" || req.body?.questionId || req.body?.useAI === false) {
+        // Question Bank mode: deterministic local evaluation (or optional AI if requested)
+        const response = await questionBankService.evaluateAnswer(req.body || {});
+        return res.json(response);
+      }
+
+      // AI mode: Gemini with Grok fallback
+      const response = await aiService.evaluateInterviewAnswer(req.body || {});
+      return res.json({
+        ...response,
+        mode: "ai",
+      });
+    } catch (error) {
+      console.error("❌ Interview Evaluation Error:", error);
+
+      const status = error.status || 500;
+      return res.status(status).json({
+        success: false,
+        code: error.code || "EVALUATION_ERROR",
+        error: error.message || "Interview evaluation failed",
+        message: error.message || "Interview evaluation failed",
+      });
+    }
+  }
+);
+
+// ============================================================
+// MOCK INTERVIEW SAVE & CAREER PROGRESS
+// ============================================================
+
+router.post(
+  ["/save-interview", "/mock-interview/save"],
+  async (req, res) => {
+    try {
+      const response = await questionBankService.saveInterviewSession({
+        ...req.body,
+        userId: req.userId,
+      });
+
+      const mode = (req.body?.mode || "").toLowerCase();
+      if (mode === "question-bank") {
+        logActivity(req.userId, ACTIVITY_TYPES.QUESTION_BANK_INTERVIEW_COMPLETED, "interview", {
+          role: req.body?.role,
+          score: req.body?.score,
+        });
+      } else {
+        logActivity(req.userId, ACTIVITY_TYPES.AI_MOCK_INTERVIEW_COMPLETED, "interview", {
+          role: req.body?.role,
+          score: req.body?.score,
         });
       }
 
-      const prompt = `
-Evaluate this interview answer.
-Return ONLY JSON.
-
-QUESTION:
-${question}
-
-ANSWER:
-${answer}
-`;
-
-      const result =
-        await generateGeminiJSON(
-          prompt,
-          {
-            type: "object",
-            properties: {
-              score: { type: "number" },
-              feedback: { type: "string" },
-              strengths: {
-                type: "array",
-                items: { type: "string" },
-              },
-              improvements: {
-                type: "array",
-                items: { type: "string" },
-              },
-            },
-            required: [
-              "score",
-              "feedback",
-              "strengths",
-              "improvements",
-            ],
-          },
-          { temperature: 0.2, timeout: 60000 }
-        );
-
-      return res.json({
-        success: true,
-        evaluation: result,
-      });
+      return res.json(response);
     } catch (error) {
-      console.error(
-        "❌ Interview Evaluation Error:",
-        error
-      );
-
+      console.error("❌ Save Interview Error:", error);
       return res.status(500).json({
         success: false,
-        error:
-          error?.message ||
-          "Interview evaluation failed",
+        message: error.message || "Failed to save interview result",
+      });
+    }
+  }
+);
+
+router.get("/interview-latest-score", async (req, res) => {
+  try {
+    if (!req.userId) {
+      return res.json({ success: true, score: null });
+    }
+    const latest = await InterviewSession.findOne({ userId: req.userId })
+      .sort({ createdAt: -1 })
+      .lean();
+    return res.json({
+      success: true,
+      score: latest ? latest.score : null,
+      mode: latest ? latest.mode : null,
+      createdAt: latest ? latest.createdAt : null,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================================
+// CAREER RECOMMENDATIONS
+// ============================================================
+
+router.post(
+  ["/career-recommendations", "/career-recommendation"],
+  async (req, res) => {
+    try {
+      const response = await aiService.generateCareerRecommendations(req.body || {});
+      logActivity(req.userId, ACTIVITY_TYPES.CAREER_ASSISTANT_USED, "careerAssistant");
+      return res.json(response);
+    } catch (error) {
+      console.error("❌ Career Recommendations Error:", error);
+
+      const status = error.status || 500;
+      return res.status(status).json({
+        success: false,
+        code: error.code || "CAREER_RECOMMENDATIONS_ERROR",
+        error: error.message || "Failed to generate career recommendations",
+        message: error.message || "Failed to generate career recommendations",
       });
     }
   }
@@ -1000,6 +1043,10 @@ ${resume.slice(0, 50000)}
           },
           { temperature: 0.2, timeout: 90000 }
         );
+
+      logActivity(req.userId, ACTIVITY_TYPES.JOB_MATCH, "jobMatch", {
+        targetRole,
+      });
 
       return res.json({
         success: true,
@@ -1196,6 +1243,8 @@ ${resumeText.slice(0, 50000)}
           certifications: safeString(result?.sections?.certifications),
         },
       };
+
+      logActivity(req.userId, ACTIVITY_TYPES.ATS_ANALYSIS, "ats");
 
       return res.json({
         success: true,
@@ -1600,15 +1649,19 @@ IMPORTANT RULES:
         ],
       };
 
-      const result =
-        await generateGeminiJSON(
-          prompt,
-          responseSchema,
-          {
-            temperature: 0.15,
-            timeout: 90000,
-          }
-        );
+      const aiResponse = await aiService.executeWithFallback({
+        featureName: "Skill Gap Analysis",
+        prompt,
+        systemPrompt:
+          "You are an expert career advisor and skills-gap analyst. Return ONLY valid JSON adhering to the specified schema.",
+        responseSchema,
+        options: {
+          temperature: 0.15,
+          timeout: 90000,
+        },
+      });
+
+      const result = aiResponse.data;
 
       const analysis = {
         readinessScore:
@@ -1893,9 +1946,13 @@ IMPORTANT RULES:
         );
       }
 
+      logActivity(req.userId, ACTIVITY_TYPES.SKILL_GAP_ANALYSIS, "skillGap", {
+        targetRole,
+      });
+
       return res.status(200).json({
         success: true,
-
+        provider: aiResponse?.provider || "gemini",
         analysis,
 
         analysisId:

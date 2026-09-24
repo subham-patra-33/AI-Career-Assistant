@@ -544,6 +544,36 @@ export default function JobRecommendations() {
       };
     }, []);
 
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+
+    fetch(`${API_URL}/api/jobs/saved`, {
+      headers: authHeaders(),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          const formatted = data.data.map((item) => ({
+            id: item.jobId,
+            jobId: item.jobId,
+            title: item.title,
+            company: item.company,
+            location: item.location,
+            salary: item.salary,
+            applyUrl: item.applyUrl,
+            description: item.description,
+            applicationStatus: item.applicationStatus,
+            savedAt: item.savedAt,
+            ...(item.jobData || {}),
+          }));
+          setSavedJobs(formatted);
+          localStorage.setItem(SAVED_JOBS_KEY, JSON.stringify(formatted));
+        }
+      })
+      .catch(() => {});
+  }, [authHeaders]);
+
   /* ==========================================================
      FETCH JOBS
      ========================================================== */
@@ -1058,6 +1088,29 @@ export default function JobRecommendations() {
           storageError
         );
       }
+
+      const token = getToken();
+      if (token) {
+        fetch(`${API_URL}/api/jobs/saved/toggle`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            jobId: key,
+            title: job?.title || "",
+            company: job?.company || "",
+            location: job?.location || "",
+            salary: job?.salary || "",
+            applyUrl: job?.applyUrl || job?.url || "",
+            description: job?.description || "",
+            jobData: job,
+          }),
+        }).catch((err) => console.error("Failed to sync toggle saved job with backend:", err));
+      }
+
+      window.dispatchEvent(new Event("storage"));
     };
 
   const isSaved =
@@ -1887,6 +1940,29 @@ export default function JobRecommendations() {
                               }
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={() => {
+                                const token = getToken();
+                                if (token) {
+                                  fetch(`${API_URL}/api/jobs/apply`, {
+                                    method: "POST",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      Authorization: `Bearer ${token}`,
+                                    },
+                                    body: JSON.stringify({
+                                      jobId: getJobKey(job),
+                                      title: job?.title || "",
+                                      company: job?.company || "",
+                                      location: job?.location || "",
+                                      salary: job?.salary || "",
+                                      applyUrl: applyUrl,
+                                      description: job?.description || "",
+                                    }),
+                                  })
+                                    .then(() => window.dispatchEvent(new Event("storage")))
+                                    .catch(() => {});
+                                }
+                              }}
                               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
                             >
                               Apply Now

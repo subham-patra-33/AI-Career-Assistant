@@ -15,142 +15,145 @@ import {
 import { useNavigate } from "react-router-dom";
 import BackButton from "../BackButton";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:4000"
+)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/^http:\/\/localhost(?=[:/]|$)/i, "http://127.0.0.1");
 
 export default function CareerProgress() {
   const navigate = useNavigate();
 
   const [resumeCount, setResumeCount] = useState(0);
+  const [savedJobsCount, setSavedJobsCount] = useState(0);
+  const [appliedCount, setAppliedCount] = useState(0);
+  const [interviewCount, setInterviewCount] = useState(0);
+  const [backendProgress, setBackendProgress] = useState(null);
 
-  const [savedJobs, setSavedJobs] = useState(() => {
+  const [skillGapCompleted, setSkillGapCompleted] = useState(
+    localStorage.getItem("skillGapCompleted") === "true"
+  );
+
+  const [interviewScore, setInterviewScore] = useState(
+    Number(localStorage.getItem("lastInterviewScore") || 0)
+  );
+
+  const fetchCareerProgress = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
     try {
-      return JSON.parse(
-        localStorage.getItem("savedJobs") || "[]"
-      );
-    } catch {
-      return [];
+      const response = await fetch(`${API_URL}/api/career-progress`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const result = await response.json();
+      if (result?.success && result?.data) {
+        const d = result.data;
+        setResumeCount(Number(d.resumesCreated) || 0);
+        setSavedJobsCount(Number(d.jobsSaved) || 0);
+        setAppliedCount(Number(d.applications) || 0);
+        setInterviewCount(Number(d.interviews) || 0);
+
+        if (typeof d.overallProgress === "number") {
+          setBackendProgress(d.overallProgress);
+        }
+
+        if (typeof d.interviewScore === "number" && d.interviewScore > 0) {
+          setInterviewScore(d.interviewScore);
+          localStorage.setItem("lastInterviewScore", String(d.interviewScore));
+        }
+
+        if (d.skillGapStatus === "Completed") {
+          setSkillGapCompleted(true);
+          localStorage.setItem("skillGapCompleted", "true");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load career progress:", err);
     }
-  });
-
-  const [skillGapCompleted, setSkillGapCompleted] =
-    useState(
-      localStorage.getItem("skillGapCompleted") === "true"
-    );
-
-  const [interviewScore, setInterviewScore] =
-    useState(
-      Number(
-        localStorage.getItem("lastInterviewScore") || 0
-      )
-    );
+  };
 
   useEffect(() => {
+    fetchCareerProgress();
+
+    // Fallback: sync latest interview score if not yet set
     const token = localStorage.getItem("token");
-
-    fetch(`${API_URL}/api/resumes`, {
-      headers: token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {},
-    })
-      .then((response) =>
-        response.ok ? response.json() : null
-      )
-      .then((data) => {
-        const resumes =
-          data?.resumes ||
-          data?.data ||
-          (Array.isArray(data) ? data : []);
-
-        setResumeCount(
-          Array.isArray(resumes) ? resumes.length : 0
-        );
+    if (!localStorage.getItem("lastInterviewScore") && token) {
+      fetch(`${API_URL}/api/interview/latest-score`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => {});
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.score) {
+            localStorage.setItem("lastInterviewScore", String(d.score));
+            setInterviewScore(Number(d.score));
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
     const refresh = () => {
-      try {
-        setSavedJobs(
-          JSON.parse(
-            localStorage.getItem("savedJobs") || "[]"
-          )
-        );
-      } catch {
-        setSavedJobs([]);
-      }
+      fetchCareerProgress();
 
       setSkillGapCompleted(
-        localStorage.getItem("skillGapCompleted") ===
-          "true"
+        localStorage.getItem("skillGapCompleted") === "true"
       );
 
       setInterviewScore(
-        Number(
-          localStorage.getItem("lastInterviewScore") || 0
-        )
+        Number(localStorage.getItem("lastInterviewScore") || 0)
       );
     };
 
     window.addEventListener("storage", refresh);
 
-    return () =>
-      window.removeEventListener("storage", refresh);
+    return () => window.removeEventListener("storage", refresh);
   }, []);
-
-  const appliedJobs = savedJobs.filter(
-    (job) => job.applicationStatus === "Applied"
-  ).length;
-
-  const interviews = savedJobs.filter(
-    (job) => job.applicationStatus === "Interview"
-  ).length;
 
   const checklist = [
     {
       title: "Create a resume",
-      description:
-        "Build a polished resume tailored to your target role.",
+      description: "Build a polished resume tailored to your target role.",
       complete: resumeCount > 0,
       icon: FileText,
       action: () => navigate("/resume"),
     },
     {
       title: "Analyze your skill gap",
-      description:
-        "Understand which capabilities you need to improve.",
+      description: "Understand which capabilities you need to improve.",
       complete: skillGapCompleted,
       icon: Target,
       action: () => navigate("/skill-gap"),
     },
     {
       title: "Practice an interview",
-      description:
-        "Use AI to practice realistic interview questions.",
+      description: "Use AI to practice realistic interview questions.",
       complete: interviewScore > 0,
       icon: Mic,
       action: () => navigate("/ai-mock-interview"),
     },
     {
       title: "Apply to jobs",
-      description:
-        "Find relevant opportunities and start applying.",
-      complete: appliedJobs > 0,
+      description: "Find relevant opportunities and start applying.",
+      complete: appliedCount > 0,
       icon: Briefcase,
       action: () => navigate("/job-recommendations"),
     },
   ];
 
-  const completed = checklist.filter(
-    (item) => item.complete
-  ).length;
+  const completed = checklist.filter((item) => item.complete).length;
 
-  const progress = Math.round(
-    (completed / checklist.length) * 100
-  );
+  const progress =
+    backendProgress !== null
+      ? backendProgress
+      : Math.round((completed / checklist.length) * 100);
 
   const milestones = useMemo(
     () => [
@@ -160,27 +163,22 @@ export default function CareerProgress() {
         icon: FileText,
       },
       {
-        value: savedJobs.length,
+        value: savedJobsCount,
         label: "Jobs saved",
         icon: Briefcase,
       },
       {
-        value: appliedJobs,
+        value: appliedCount,
         label: "Applications",
         icon: TrendingUp,
       },
       {
-        value: interviews,
+        value: interviewCount,
         label: "Interviews",
         icon: Mic,
       },
     ],
-    [
-      resumeCount,
-      savedJobs.length,
-      appliedJobs,
-      interviews,
-    ]
+    [resumeCount, savedJobsCount, appliedCount, interviewCount]
   );
 
   return (
@@ -375,7 +373,7 @@ export default function CareerProgress() {
                   </span>
 
                   <span className="font-black">
-                    {appliedJobs}
+                    {appliedCount}
                   </span>
                 </div>
               </div>

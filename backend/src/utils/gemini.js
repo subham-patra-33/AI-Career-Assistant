@@ -1,11 +1,17 @@
 // backend/src/utils/gemini.js
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 =======
 const MODEL =
   process.env.GEMINI_MODEL || "gemini-3.6-flash";
+=======
+function getModelName() {
+  return process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+}
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
 
 const GEMINI_API_KEY =
   process.env.GEMINI_API_KEY;
@@ -303,31 +309,9 @@ function normalizeGeminiError(error) {
   /*
   |--------------------------------------------------------------------------
   | Model Not Found
-  |--------------------------------------------------------------------------
-  */
-
-  if (
-    status === 404 ||
-    lower.includes("not found") ||
-    lower.includes("model") &&
-      lower.includes("unavailable")
-  ) {
-    const normalized =
-      new Error(
-        `Gemini model "${MODEL}" is unavailable. Check GEMINI_MODEL in backend/.env.`
-      );
-
-    normalized.code =
-      "GEMINI_MODEL";
-
-    normalized.status = 404;
-
-    return normalized;
-  }
-
   /*
   |--------------------------------------------------------------------------
-  | Temporary Server Errors
+  | Temporary Server Errors / High Demand (503 / 502 / 504)
   |--------------------------------------------------------------------------
   */
 
@@ -336,19 +320,46 @@ function normalizeGeminiError(error) {
     status === 502 ||
     status === 503 ||
     status === 504 ||
+    lower.includes("high demand") ||
     lower.includes("temporarily unavailable") ||
     lower.includes("service unavailable") ||
-    lower.includes("internal server error")
+    lower.includes("internal server error") ||
+    lower.includes("spikes in demand") ||
+    (lower.includes("model") && lower.includes("unavailable"))
   ) {
     const normalized =
       new Error(
-        "Gemini is temporarily unavailable. Please try again."
+        "Gemini is temporarily experiencing high demand. Retrying..."
       );
 
     normalized.code =
       "GEMINI_TEMPORARY_ERROR";
 
     normalized.status = 503;
+
+    return normalized;
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Model Not Found
+  |--------------------------------------------------------------------------
+  */
+
+  if (
+    status === 404 ||
+    lower.includes("model not found") ||
+    (lower.includes("model") && lower.includes("not found"))
+  ) {
+    const normalized =
+      new Error(
+        `Gemini model "${getModelName()}" was not found. Check GEMINI_MODEL in backend/.env.`
+      );
+
+    normalized.code =
+      "GEMINI_MODEL";
+
+    normalized.status = 502;
 
     return normalized;
   }
@@ -544,15 +555,17 @@ async function generateGeminiJSON(
       ? options.temperature
       : 0.2;
 
+  const model = getModelName();
+
   console.log(
-    `🤖 Gemini model: ${MODEL}`
+    `🤖 Gemini model: ${model}`
   );
 
   try {
     const response =
       await withTimeout(
         client.models.generateContent({
-          model: MODEL,
+          model,
 
           contents: prompt,
 
@@ -598,8 +611,12 @@ async function generateGeminiJSON(
 
     console.error(
       "Model:",
+<<<<<<< HEAD
       MODEL
 >>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
+=======
+      model
+>>>>>>> 1c15bfd (Update GauravGo gaming website)
     );
 
     console.error(

@@ -202,6 +202,7 @@ const mongoose = require("mongoose");
 
 const Resume = require("../models/Resume");
 const { callGemini } = require("../utils/gemini");
+const { logActivity, ACTIVITY_TYPES } = require("../services/activityService");
 
 /* ============================================================
    GENERAL HELPERS
@@ -455,6 +456,11 @@ async function autoGenerate(req, res) {
       String(resume._id)
     );
 
+    logActivity(req.userId, ACTIVITY_TYPES.RESUME_CREATED, "resume", {
+      resumeId: resume._id,
+      templateId: finalTemplateId,
+    });
+
     console.log(
       "=================================================="
     );
@@ -596,6 +602,11 @@ async function create(req, res) {
       "✅ Resume created:",
       String(resume._id)
     );
+
+    logActivity(req.userId, ACTIVITY_TYPES.RESUME_CREATED, "resume", {
+      resumeId: resume._id,
+      templateId: finalTemplateId,
+    });
 
     return res.status(201).json({
       success: true,

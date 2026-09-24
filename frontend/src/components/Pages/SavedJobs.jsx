@@ -16,6 +16,14 @@ import {
   RotateCcw,
 } from "lucide-react";
 import BackButton from "../BackButton";
+import { getToken } from "../../lib/auth";
+
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:4000"
+)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/^http:\/\/localhost(?=[:/]|$)/i, "http://127.0.0.1");
 
 const STORAGE_KEY = "savedJobs";
 
@@ -265,6 +273,38 @@ export default function SavedJobs() {
   const [showClearConfirm, setShowClearConfirm] =
     useState(false);
 
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+
+    fetch(`${API_URL}/api/jobs/saved`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          const formatted = data.data.map((item) => ({
+            id: item.jobId,
+            jobId: item.jobId,
+            title: item.title,
+            company: item.company,
+            location: item.location,
+            salary: item.salary,
+            applyUrl: item.applyUrl,
+            description: item.description,
+            applicationStatus: item.applicationStatus,
+            savedAt: item.savedAt,
+            ...(item.jobData || {}),
+          }));
+          setJobs(formatted);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(formatted));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   /* ==========================================================
      STORAGE
      ========================================================== */
@@ -276,6 +316,8 @@ export default function SavedJobs() {
       STORAGE_KEY,
       JSON.stringify(nextJobs)
     );
+
+    window.dispatchEvent(new Event("storage"));
   };
 
   /* ==========================================================
@@ -375,6 +417,18 @@ export default function SavedJobs() {
 
     saveJobs(nextJobs);
 
+    const token = getToken();
+    if (token) {
+      fetch(`${API_URL}/api/jobs/saved/${encodeURIComponent(job.id || job.jobId)}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      }).catch((err) => console.error("Failed to update status on server:", err));
+    }
+
     if (
       selectedJob &&
       String(selectedJob.id) ===
@@ -409,6 +463,16 @@ export default function SavedJobs() {
     );
 
     saveJobs(nextJobs);
+
+    const token = getToken();
+    if (token) {
+      fetch(`${API_URL}/api/jobs/saved/${encodeURIComponent(job.id || job.jobId)}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch((err) => console.error("Failed to delete saved job on server:", err));
+    }
 
     if (
       selectedJob &&
