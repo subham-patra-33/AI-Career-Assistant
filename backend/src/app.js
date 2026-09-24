@@ -13,21 +13,16 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ===== ROUTES =====
-// ===== ROUTES =====
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/resumes', require('./routes/resumes'));
 app.use('/api/ai', require('./routes/aiResume'));
 app.use('/api/ai', require('./routes/resumeImport'));
-<<<<<<< HEAD
 app.use('/api/ats', require('./routes/ats'));
-app.use('/api/admin', require('./routes/admin'));
-=======
 app.use('/api/interview', require('./routes/interview'));
 app.use('/api/career-progress', require('./routes/careerProgress'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/admin', require('./routes/admin'));
 
->>>>>>> 1c15bfd (Update GauravGo gaming website)
 // Root route (friendly message instead of default "Cannot GET /")
 app.get('/', (req, res) => {
   res.json({
@@ -37,6 +32,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       resumes: '/api/resumes',
       ai: '/api/ai',
+      ats: '/api/ats',
       interview: '/api/interview',
       careerProgress: '/api/career-progress',
       jobs: '/api/jobs',

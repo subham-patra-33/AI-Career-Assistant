@@ -1,203 +1,3 @@
-<<<<<<< HEAD
-const Resume = require("../models/Resume");
-const { callGemini } = require("../utils/gemini");
-
-// ============================================================
-// POST /api/resumes/auto-generate
-// ============================================================
-// Generates and saves a resume for the authenticated user.
-
-async function autoGenerate(req, res) {
-  try {
-    const { title, data: inputData } = req.body || {};
-
-    if (!inputData) {
-      return res.status(400).json({
-        message: "Resume data is required"
-      });
-    }
-
-    if (!req.userId) {
-      return res.status(401).json({
-        message: "Authentication required"
-      });
-    }
-
-    console.log(
-      "📝 Generating resume for:",
-      inputData.fullName || inputData.name
-    );
-
-    const aiResult = await callGemini(inputData);
-
-    const resume = await Resume.create({
-      userId: req.userId,
-
-      title:
-        title ||
-        `${inputData.fullName || inputData.name || "My"}'s Resume`,
-
-      templateId:
-        inputData.templateId || "modern-minimal",
-
-      data: aiResult
-    });
-
-    console.log(
-      "✅ Resume generated and saved:",
-      resume._id.toString()
-    );
-
-    return res.status(201).json({
-      success: true,
-      resume,
-      pdfUrl: null
-    });
-
-  } catch (err) {
-    console.error(
-      "❌ autoGenerate ERROR:",
-      err.message
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        err.message ||
-        "Failed to generate resume"
-    });
-  }
-}
-
-
-// ============================================================
-// GET /api/resumes
-// ============================================================
-
-async function list(req, res) {
-  try {
-    if (!req.userId) {
-      return res.status(401).json({
-        message: "Authentication required"
-      });
-    }
-
-    const resumes = await Resume.find({
-      userId: req.userId
-    })
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    return res.json(resumes);
-
-  } catch (err) {
-    console.error(
-      "❌ Resume list error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// POST /api/resumes
-// ============================================================
-
-async function create(req, res) {
-  try {
-    const { title, templateId, data } = req.body || {};
-
-    if (!req.userId) {
-      return res.status(401).json({
-        error: true,
-        message: "Authentication required",
-      });
-    }
-
-    if (!data) {
-      return res.status(400).json({
-        error: true,
-        message: "Resume data is required",
-      });
-    }
-
-    const resume = await Resume.create({
-      userId: req.userId,
-      title: title || `${data.fullName || "My"}'s Resume`,
-      templateId: templateId || "simple-ats",
-      data,
-    });
-
-    console.log("✅ Resume saved to MongoDB:", resume._id);
-
-    return res.status(201).json(resume);
-  } catch (err) {
-    console.error("❌ Resume create error:", err);
-
-    return res.status(500).json({
-      error: true,
-      message: err.message,
-    });
-  }
-}
-
-
-// ============================================================
-// GET /api/resumes/:id
-// ============================================================
-
-async function getOne(req, res) {
-  try {
-    const resume = await Resume.findOne({
-      _id: req.params.id,
-      userId: req.userId
-    });
-
-    if (!resume) {
-      return res.status(404).json({
-        message: "Resume not found"
-      });
-    }
-
-    return res.json(resume);
-
-  } catch (err) {
-    console.error(
-      "❌ Get resume error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// PUT /api/resumes/:id
-// ============================================================
-
-async function update(req, res) {
-  try {
-    const allowedFields = {};
-
-    if (req.body.title !== undefined) {
-      allowedFields.title = req.body.title;
-    }
-
-    if (req.body.templateId !== undefined) {
-      allowedFields.templateId =
-        req.body.templateId;
-    }
-
-    if (req.body.data !== undefined) {
-      allowedFields.data = req.body.data;
-=======
 const mongoose = require("mongoose");
 
 const Resume = require("../models/Resume");
@@ -263,7 +63,7 @@ function getTemplateId(data, templateId) {
 
 function handleMongoError(res, error) {
   console.error(
-    "❌ MongoDB Resume Error:",
+    "âŒ MongoDB Resume Error:",
     error
   );
 
@@ -355,19 +155,19 @@ async function autoGenerate(req, res) {
       "=================================================="
     );
     console.log(
-      "📝 AUTO GENERATE RESUME"
+      "ðŸ“ AUTO GENERATE RESUME"
     );
     console.log(
       "=================================================="
     );
 
     console.log(
-      "👤 User:",
+      "ðŸ‘¤ User:",
       req.userId
     );
 
     console.log(
-      "👤 Candidate:",
+      "ðŸ‘¤ Candidate:",
       inputData.fullName ||
         inputData.name ||
         "Unknown"
@@ -452,7 +252,7 @@ async function autoGenerate(req, res) {
       });
 
     console.log(
-      "✅ Resume generated and saved:",
+      "âœ… Resume generated and saved:",
       String(resume._id)
     );
 
@@ -484,7 +284,7 @@ async function autoGenerate(req, res) {
     });
   } catch (error) {
     console.error(
-      "❌ autoGenerate ERROR:",
+      "âŒ autoGenerate ERROR:",
       error
     );
 
@@ -599,7 +399,7 @@ async function create(req, res) {
       });
 
     console.log(
-      "✅ Resume created:",
+      "âœ… Resume created:",
       String(resume._id)
     );
 
@@ -839,25 +639,11 @@ async function update(req, res) {
         message:
           "No valid resume fields were provided for update.",
       });
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
     }
 
     const resume =
       await Resume.findOneAndUpdate(
         {
-<<<<<<< HEAD
-          _id: req.params.id,
-          userId: req.userId
-        },
-
-        {
-          $set: allowedFields
-        },
-
-        {
-          new: true,
-          runValidators: true
-=======
           _id: id,
           userId:
             req.userId,
@@ -869,56 +655,21 @@ async function update(req, res) {
         {
           new: true,
           runValidators: true,
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
         }
       );
 
     if (!resume) {
       return res.status(404).json({
-<<<<<<< HEAD
-        message: "Resume not found"
-=======
         success: false,
         code:
           "RESUME_NOT_FOUND",
         message:
           "Resume not found.",
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
       });
     }
 
     console.log(
-      "✅ Resume updated:",
-<<<<<<< HEAD
-      resume._id.toString()
-    );
-
-    return res.json(resume);
-
-  } catch (err) {
-    console.error(
-      "❌ Resume update error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// DELETE /api/resumes/:id
-// ============================================================
-
-async function remove(req, res) {
-  try {
-    const resume =
-      await Resume.findOneAndDelete({
-        _id: req.params.id,
-        userId: req.userId
-=======
+      "âœ… Resume updated:",
       String(resume._id)
     );
 
@@ -972,67 +723,25 @@ async function remove(req, res) {
         _id: id,
         userId:
           req.userId,
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
       });
 
     if (!resume) {
       return res.status(404).json({
-<<<<<<< HEAD
-        message: "Resume not found"
-=======
         success: false,
         code:
           "RESUME_NOT_FOUND",
         message:
           "Resume not found.",
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
       });
     }
 
     console.log(
-      "🗑️ Resume deleted:",
-<<<<<<< HEAD
-      resume._id.toString()
-=======
+      "ðŸ—‘ï¸ Resume deleted:",
       String(resume._id)
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
     );
 
     return res.json({
       success: true,
-<<<<<<< HEAD
-      message: "Deleted successfully"
-    });
-
-  } catch (err) {
-    console.error(
-      "❌ Resume delete error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// POST /api/resumes/:id/ai-populate
-// ============================================================
-
-async function aiPopulate(req, res) {
-  try {
-    const resume =
-      await Resume.findOne({
-        _id: req.params.id,
-        userId: req.userId
-      });
-
-    if (!resume) {
-      return res.status(404).json({
-        message: "Resume not found"
-=======
 
       message:
         "Resume deleted successfully.",
@@ -1089,52 +798,11 @@ async function aiPopulate(req, res) {
           "RESUME_NOT_FOUND",
         message:
           "Resume not found.",
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
       });
     }
 
     console.log(
-      "🤖 AI improving resume:",
-<<<<<<< HEAD
-      resume._id.toString()
-    );
-
-    const aiResult =
-      await callGemini(resume.data);
-
-    resume.data = {
-      ...resume.data,
-      ...aiResult
-    };
-
-    await resume.save();
-
-    return res.json(resume);
-
-  } catch (err) {
-    console.error(
-      "❌ AI populate error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// POST /api/resumes/:id/generate-pdf
-// ============================================================
-
-async function generatePdfHandler(req, res) {
-  try {
-    const resume =
-      await Resume.findOne({
-        _id: req.params.id,
-        userId: req.userId
-=======
+      "ðŸ¤– AI improving resume:",
       String(
         resume._id
       )
@@ -1202,7 +870,7 @@ async function generatePdfHandler(req, res) {
     await resume.save();
 
     console.log(
-      "✅ AI resume improvement saved:",
+      "âœ… AI resume improvement saved:",
       String(
         resume._id
       )
@@ -1223,7 +891,7 @@ async function generatePdfHandler(req, res) {
     });
   } catch (error) {
     console.error(
-      "❌ AI Populate Error:",
+      "âŒ AI Populate Error:",
       error
     );
 
@@ -1266,65 +934,10 @@ async function generatePdfHandler(
         _id: id,
         userId:
           req.userId,
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
       });
 
     if (!resume) {
       return res.status(404).json({
-<<<<<<< HEAD
-        message: "Resume not found"
-      });
-    }
-
-    return res.json({
-      pdfUrl: resume.pdfUrl || null,
-      message: "Use frontend PDF generation"
-    });
-
-  } catch (err) {
-    console.error(
-      "❌ Generate PDF error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// POST /api/resumes/:id/ats-check
-// ============================================================
-
-async function atsCheck(req, res) {
-  try {
-    const resume =
-      await Resume.findOne({
-        _id: req.params.id,
-        userId: req.userId
-      });
-
-    if (!resume) {
-      return res.status(404).json({
-        message: "Resume not found"
-      });
-    }
-
-    const data = resume.data || {};
-
-    const issues = [];
-    const suggestions = [];
-
-    // ----------------------------------------------------------
-    // SUMMARY
-    // ----------------------------------------------------------
-
-    if (
-      !data.summary ||
-      data.summary.trim().length < 50
-=======
         success: false,
         code:
           "RESUME_NOT_FOUND",
@@ -1414,131 +1027,12 @@ async function atsCheck(req, res) {
         "string" ||
       data.summary.trim()
         .length < 50
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
     ) {
       issues.push(
         "Professional summary is missing or too short"
       );
 
       suggestions.push(
-<<<<<<< HEAD
-        "Add a concise 3-4 sentence professional summary"
-      );
-    }
-
-    // ----------------------------------------------------------
-    // SKILLS
-    // ----------------------------------------------------------
-
-    if (
-      !Array.isArray(data.skills) ||
-      data.skills.length < 5
-    ) {
-      issues.push(
-        "Too few skills listed"
-      );
-
-      suggestions.push(
-        "Add 10-15 relevant skills supported by your experience"
-      );
-    }
-
-    // ----------------------------------------------------------
-    // EXPERIENCE
-    // ----------------------------------------------------------
-
-    const experience =
-      Array.isArray(data.experience)
-        ? data.experience
-        : [];
-
-    if (experience.length === 0) {
-      issues.push(
-        "No work experience found"
-      );
-
-      suggestions.push(
-        "Add relevant internship, work, or practical experience"
-      );
-    }
-
-    // ----------------------------------------------------------
-    // CONTACT
-    // ----------------------------------------------------------
-
-    const contact =
-      data.contact || {};
-
-    const email =
-      data.email ||
-      contact.email;
-
-    const phone =
-      data.phone ||
-      contact.phone;
-
-    if (!email) {
-      issues.push(
-        "Email address is missing"
-      );
-
-      suggestions.push(
-        "Add a professional email address"
-      );
-    }
-
-    if (!phone) {
-      issues.push(
-        "Phone number is missing"
-      );
-
-      suggestions.push(
-        "Add your contact phone number"
-      );
-    }
-
-    // ----------------------------------------------------------
-    // ATS SCORE
-    // ----------------------------------------------------------
-
-    const score = Math.max(
-      30,
-      100 - issues.length * 15
-    );
-
-    const keywords =
-      Array.isArray(data.atsKeywords)
-        ? data.atsKeywords.slice(0, 15)
-        : Array.isArray(data.skills)
-          ? data.skills.slice(0, 15)
-          : [];
-
-    return res.json({
-      result: {
-        score,
-        issues,
-        suggestions,
-        keywords
-      }
-    });
-
-  } catch (err) {
-    console.error(
-      "❌ ATS check error:",
-      err.message
-    );
-
-    return res.status(500).json({
-      message: err.message
-    });
-  }
-}
-
-
-// ============================================================
-// EXPORT
-// ============================================================
-=======
         "Add a 3-4 sentence professional summary at the top"
       );
     }
@@ -1738,7 +1232,6 @@ async function atsCheck(req, res) {
 /* ============================================================
    EXPORT
    ============================================================ */
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
 module.exports = {
   list,
@@ -1749,9 +1242,5 @@ module.exports = {
   aiPopulate,
   generatePdfHandler,
   autoGenerate,
-<<<<<<< HEAD
-  atsCheck
-=======
   atsCheck,
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 };

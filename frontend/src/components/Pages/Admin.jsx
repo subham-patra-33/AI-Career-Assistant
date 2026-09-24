@@ -105,56 +105,6 @@ function ActivityBars({ items, emptyMessage }) {
 function Admin() {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
-<<<<<<< HEAD
-const [stats, setStats] = useState({
-  totalUsers: 0,
-  totalAdmins: 0,
-  totalNormalUsers: 0,
-  activeUsers: 0,
-  inactiveUsers: 0,
-  totalResumes: 0,
-
-    analytics: {
-    userGrowth: [],
-    resumeGrowth: [],
-    roleDistribution: [],
-    mostActiveUsers: [],
-    templateUsage: [],
-  },
-}); 
- const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-const [roleFilter, setRoleFilter] = useState("all");
-  useEffect(() => {
-    async function load() {
-      const token = getToken();
-      if (!token) {
-        navigate("/");
-        return;
-      }
-      try {
-        const [usersRes, statsRes] = await Promise.all([
-          fetch(`${API_URL}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
-
-        if (usersRes.status === 403 || statsRes.status === 403) {
-          setError("You don't have admin access.");
-          setLoading(false);
-          return;
-        }
-
-        setUsers(await usersRes.json());
-        setStats(await statsRes.json());
-      } catch (err) {
-        setError("Failed to load admin data.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-=======
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalStudents: 0,
@@ -217,7 +167,6 @@ const [roleFilter, setRoleFilter] = useState("all");
 
   useEffect(() => {
     loadData();
->>>>>>> 1c15bfd (Update GauravGo gaming website)
   }, [navigate]);
 const filteredUsers = users.filter((u) => {
   const searchText = search.toLowerCase().trim();
@@ -307,9 +256,6 @@ const filteredUsers = users.filter((u) => {
   </div>
 
 </div>
-<<<<<<< HEAD
-{/* ANALYTICS */}
-=======
 
 {/* PLATFORM FEATURE USAGE ANALYTICS */}
 <div className="mb-6">
@@ -404,7 +350,6 @@ const filteredUsers = users.filter((u) => {
     </div>
   </div>
 </div>
->>>>>>> 1c15bfd (Update GauravGo gaming website)
 
 {/* ANALYTICS */}
 
@@ -948,13 +893,10 @@ const filteredUsers = users.filter((u) => {
           </th>
 
           <th className="text-left px-5 py-3 text-xs uppercase tracking-wider muted font-bold">
-<<<<<<< HEAD
-=======
             Last Login
           </th>
 
           <th className="text-left px-5 py-3 text-xs uppercase tracking-wider muted font-bold">
->>>>>>> 1c15bfd (Update GauravGo gaming website)
             Joined
           </th>
 
@@ -974,11 +916,7 @@ const filteredUsers = users.filter((u) => {
           <tr>
             <td
               className="px-5 py-8 muted text-center"
-<<<<<<< HEAD
-              colSpan={5}
-=======
               colSpan={6}
->>>>>>> 1c15bfd (Update GauravGo gaming website)
             >
               Loading users…
             </td>
@@ -990,11 +928,7 @@ const filteredUsers = users.filter((u) => {
 
             <td
               className="px-5 py-10 text-center"
-<<<<<<< HEAD
-              colSpan={5}
-=======
               colSpan={6}
->>>>>>> 1c15bfd (Update GauravGo gaming website)
             >
 
               <div className="muted text-sm">
@@ -1114,8 +1048,6 @@ const filteredUsers = users.filter((u) => {
 
               </td>
 
-<<<<<<< HEAD
-=======
               {/* LAST LOGIN */}
 
               <td className="px-5 py-4">
@@ -1141,7 +1073,6 @@ const filteredUsers = users.filter((u) => {
 
               </td>
 
->>>>>>> 1c15bfd (Update GauravGo gaming website)
 
               {/* JOINED */}
 

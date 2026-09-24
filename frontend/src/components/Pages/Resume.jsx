@@ -372,15 +372,6 @@ function normalizeGeneratedResume(raw = {}) {
     raw ||
     {};
 
-<<<<<<< HEAD
-  const contact =
-    resume?.contact ||
-    resume?.contactInfo ||
-    resume?.contactInformation ||
-    {};
-
-=======
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
   return {
     ...emptyResume,
 
@@ -1244,7 +1235,6 @@ education:
         splitList(form.skills),
 
       experience:
-<<<<<<< HEAD
   uploaded?.experience?.length
     ? uploaded.experience
     : String(form.experience || "").trim(),
@@ -1259,15 +1249,6 @@ education:
     ? uploaded.education
     : String(form.education || "").trim(),
 
-=======
-        form.experience.trim(),
-
-      projects:
-        form.projects.trim(),
-
-      education:
-        form.education.trim(),
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
       certifications:
         form.certifications.trim(),
@@ -1997,7 +1978,6 @@ education:
               finalResume
             );
 
-<<<<<<< HEAD
             // --------------------------------------------------------
             // SAVE GENERATED RESUME TO THE LOGGED-IN USER'S ACCOUNT
             // --------------------------------------------------------
@@ -2059,19 +2039,6 @@ setSuccess("Your resume has been generated and saved to My Resumes.");
                 "Your resume has been generated successfully. It could not be saved to My Resumes right now."
               );
             }
-=======
-            try {
-              window.dispatchEvent(
-                new CustomEvent("resumes:changed")
-              );
-            } catch {
-              // Ignore browser event errors.
-            }
-
-            setSuccess(
-              "Your resume has been generated successfully."
-            );
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
             setIsGenerating(false);
 
@@ -2193,13 +2160,7 @@ setSuccess("Your resume has been generated and saved to My Resumes.");
   // PDF GENERATION
   // ==========================================================
 
-<<<<<<< HEAD
-const downloadPDF = async () => {
-  try {
-    const resumeElement = document.getElementById(
-      "generated-resume-document"
-    );
-=======
+
   const downloadPDF = async () => {
     let pdfContainer = null;
 
@@ -2208,7 +2169,6 @@ const downloadPDF = async () => {
         document.getElementById(
           "generated-resume-document"
         );
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
 
     if (!resumeElement) {
       showUserError(
@@ -2225,49 +2185,6 @@ const downloadPDF = async () => {
       setTimeout(resolve, 500)
     );
 
-<<<<<<< HEAD
- const canvas = await html2canvas(resumeElement, {
-  scale: 2,
-  useCORS: true,
-  allowTaint: false,
-  backgroundColor: "#ffffff",
-  logging: false,
-  imageTimeout: 30000,
-  scrollX: 0,
-  scrollY: 0,
-  width: resumeElement.scrollWidth,
-  height: resumeElement.scrollHeight,
-  windowWidth: resumeElement.scrollWidth,
-  windowHeight: resumeElement.scrollHeight,
-});
-
-    if (
-      !canvas.width ||
-      !canvas.height
-    ) {
-      throw new Error(
-        "Resume could not be rendered."
-      );
-    }
-
-    const imgData =
-      canvas.toDataURL(
-        "image/jpeg",
-        0.95
-      );
-
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-      compress: true,
-    });
-
-    const pageWidth = 210;
-    const pageHeight = 297;
-
-    const imgWidth = pageWidth;
-=======
       // ----------------------------------------------------------
       // Wait for the latest React render to finish.
       // ----------------------------------------------------------
@@ -2951,150 +2868,45 @@ const downloadPDF = async () => {
           format: "a4",
           compress: true,
         });
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
 
-    const imgHeight =
-      (canvas.height * imgWidth) /
-      canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(
-      imgData,
-      "JPEG",
-      0,
-      position,
-      imgWidth,
-      imgHeight,
-      undefined,
-      "FAST"
-    );
-
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      position =
-        heightLeft - imgHeight;
-
-      pdf.addPage();
-
-<<<<<<< HEAD
-=======
-      // ----------------------------------------------------------
-      // First page.
-      // ----------------------------------------------------------
-
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
-      pdf.addImage(
-        imgData,
-        "JPEG",
-        0,
-        position,
-        imgWidth,
-        imgHeight,
-        undefined,
-        "FAST"
-      );
-
-<<<<<<< HEAD
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
       heightLeft -= pageHeight;
-=======
-      heightLeft -=
-        pageHeight;
 
-      // ----------------------------------------------------------
-      // Additional pages.
-      // ----------------------------------------------------------
-
-      while (
-        heightLeft > 0
-      ) {
-        position =
-          heightLeft -
-          imgHeight;
-
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
         pdf.addPage();
-
-        pdf.addImage(
-          imgData,
-          "JPEG",
-          0,
-          position,
-          imgWidth,
-          imgHeight,
-          undefined,
-          "FAST"
-        );
-
-        heightLeft -=
-          pageHeight;
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+        heightLeft -= pageHeight;
       }
 
-      // ----------------------------------------------------------
-      // Safe filename.
-      // ----------------------------------------------------------
+      const safeName = (
+        livePreviewData?.fullName ||
+        form?.fullName ||
+        "resume"
+      )
+        .replace(/[^a-z0-9]+/gi, "_")
+        .replace(/^_+|_+$/g, "");
 
-      const safeName =
-        (
-          livePreviewData?.fullName ||
-          form?.fullName ||
-          "resume"
-        )
-          .replace(
-            /[^a-z0-9]+/gi,
-            "_"
-          )
-          .replace(
-            /^_+|_+$/g,
-            "");
-
-      pdf.save(
-        `${
-          safeName ||
-          "resume"
-        }_resume.pdf`
-      );
-
-      // ----------------------------------------------------------
-      // Cleanup.
-      // ----------------------------------------------------------
+      pdf.save(`${safeName || "resume"}_resume.pdf`);
 
       if (pdfContainer) {
         pdfContainer.remove();
         pdfContainer = null;
       }
+      setSuccess("✓ Resume PDF downloaded successfully.");
     } catch (err) {
-      console.error(
-        "=========================================="
-      );
-      console.error(
-        "❌ PDF GENERATION ERROR"
-      );
-      console.error(
-        "=========================================="
-      );
-      console.error(
-        "Error:",
-        err
-      );
-      console.error(
-        "Message:",
-        err?.message
-      );
-      console.error(
-        "Stack:",
-        err?.stack
-      );
-
+      console.error("PDF GENERATION ERROR", err);
       if (pdfContainer) {
         try {
           pdfContainer.remove();
-        } catch {
-          // Ignore cleanup errors.
-        }
+        } catch {}
       }
-
       showUserError(
         "PDF Could Not Be Created",
         err?.message
@@ -3102,69 +2914,8 @@ const downloadPDF = async () => {
           : "We couldn't create the PDF right now. Please try again.",
         true
       );
->>>>>>> 93f05e4 (Fix Gemini AI skill gap analysis)
     }
-
-    const safeName = (
-      livePreviewData?.fullName ||
-      form?.fullName ||
-      "resume"
-    )
-      .replace(
-        /[^a-z0-9]+/gi,
-        "_"
-      )
-      .replace(
-        /^_+|_+$/g,
-        "");
-
-    const fileName =
-      `${safeName || "resume"}_resume.pdf`;
-
-    const pdfBlob =
-      pdf.output("blob");
-
-    const blobUrl =
-      URL.createObjectURL(
-        pdfBlob
-      );
-
-    const link =
-      document.createElement("a");
-
-    link.href = blobUrl;
-    link.download = fileName;
-    link.style.display = "none";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-
-    setTimeout(() => {
-      URL.revokeObjectURL(
-        blobUrl
-      );
-    }, 1000);
-
-    setSuccess(
-      "✓ Resume PDF downloaded successfully."
-    );
-  } catch (err) {
-    console.error(
-      "PDF generation error:",
-      err
-    );
-
-    showUserError(
-      "PDF Could Not Be Created",
-      err?.message ||
-        "We couldn't create the PDF right now. Please try again.",
-      true
-    );
-  }
-};
+  };
 
   // ==========================================================
   // BROWSER PREVIEW
