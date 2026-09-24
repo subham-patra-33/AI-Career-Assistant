@@ -20,3 +20,10 @@ AI-powered resume generator that creates ATS-optimized resumes tailored to speci
 - **AI/ML:** Google Gemini APIs
 - **Authentication:** JWT
 - **Tools:** Git, GitHub, Postman
+  
+🌐 Production URLs
+Component	Production URL	Status
+Frontend (React + Vite)	https://ai-career-assistant-frontend-beige.vercel.app
+🟢 Live & Verified
+Backend API (Node.js + Express)	https://ai-career-assistant-backend.vercel.app
+🟢 Live & Verified
