@@ -32,10 +32,7 @@ const upload = multer({
     const name = String(file.originalname || "").toLowerCase();
     const mime = String(file.mimetype || "").toLowerCase();
 
-    if (
-      mime === "application/pdf" ||
-      name.endsWith(".pdf")
-    ) {
+    if (mime === "application/pdf" || name.endsWith(".pdf")) {
       return cb(null, true);
     }
 
@@ -76,15 +73,9 @@ function safeNumber(value, fallback = 0) {
 }
 
 function normalizeResumeTitle(data = {}) {
-  const name =
-    safeString(data.fullName) ||
-    safeString(data.name) ||
-    "My";
-
+  const name = safeString(data.fullName) || safeString(data.name) || "My";
   const role =
-    safeString(data.targetRole) ||
-    safeString(data.role) ||
-    "Professional";
+    safeString(data.targetRole) || safeString(data.role) || "Professional";
 
   return `${name}'s ${role} Resume`;
 }
@@ -103,8 +94,7 @@ function normalizeProviderError(error) {
     return {
       status: 429,
       code: "GEMINI_QUOTA",
-      message:
-        "Gemini API quota or rate limit has been reached.",
+      message: "Gemini API quota or rate limit has been reached.",
     };
   }
 
@@ -131,8 +121,7 @@ function normalizeProviderError(error) {
     return {
       status: 502,
       code: "GEMINI_MODEL",
-      message:
-        "The configured Gemini model is unavailable.",
+      message: "The configured Gemini model is unavailable.",
     };
   }
 
@@ -144,21 +133,14 @@ function normalizeProviderError(error) {
     return {
       status: 504,
       code: "GEMINI_TIMEOUT",
-      message:
-        "Gemini took too long to respond.",
+      message: "Gemini took too long to respond.",
     };
   }
 
   return {
-    status: Number.isInteger(error?.status)
-      ? error.status
-      : 500,
-    code:
-      error?.code ||
-      "AI_GENERATION_FAILED",
-    message:
-      message ||
-      "The AI request failed.",
+    status: Number.isInteger(error?.status) ? error.status : 500,
+    code: error?.code || "AI_GENERATION_FAILED",
+    message: message || "The AI request failed.",
   };
 }
 
@@ -169,7 +151,7 @@ function requestJson(url, options = {}) {
       {
         method: options.method || "GET",
         headers: options.headers || {},
-        family: options.family || 6,
+        family: options.family || 4,
         timeout: options.timeout || 30000,
       },
       (response) => {
@@ -189,10 +171,7 @@ function requestJson(url, options = {}) {
             parsed = null;
           }
 
-          if (
-            response.statusCode < 200 ||
-            response.statusCode >= 300
-          ) {
+          if (response.statusCode < 200 || response.statusCode >= 300) {
             const error = new Error(
               parsed?.display_name ||
                 parsed?.message ||
@@ -209,9 +188,7 @@ function requestJson(url, options = {}) {
     );
 
     request.on("timeout", () => {
-      request.destroy(
-        new Error("Adzuna request timed out.")
-      );
+      request.destroy(new Error("Adzuna request timed out."));
     });
 
     request.on("error", reject);
@@ -220,17 +197,9 @@ function requestJson(url, options = {}) {
 }
 
 function getAdzunaCredentials() {
-  const appId =
-    process.env.ADZUNA_APP_ID ||
-    process.env.ADZUNA_ID;
-
-  const appKey =
-    process.env.ADZUNA_APP_KEY ||
-    process.env.ADZUNA_KEY;
-
-  const country =
-    process.env.ADZUNA_COUNTRY ||
-    "in";
+  const appId = process.env.ADZUNA_APP_ID || process.env.ADZUNA_ID;
+  const appKey = process.env.ADZUNA_APP_KEY || process.env.ADZUNA_KEY;
+  const country = process.env.ADZUNA_COUNTRY || "in";
 
   if (!appId || !appKey) {
     throw new Error(
@@ -238,26 +207,14 @@ function getAdzunaCredentials() {
     );
   }
 
-  return {
-    appId,
-    appKey,
-    country,
-  };
+  return { appId, appKey, country };
 }
 
 async function requestAdzuna(params = {}) {
-  const { appId, appKey, country } =
-    getAdzunaCredentials();
+  const { appId, appKey, country } = getAdzunaCredentials();
 
-  const page = Math.max(
-    1,
-    Number(params.page) || 1
-  );
-
-  const limit = Math.min(
-    50,
-    Math.max(1, Number(params.limit) || 20)
-  );
+  const page = Math.max(1, Number(params.page) || 1);
+  const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
 
   const query =
     safeString(params.query) ||
@@ -278,12 +235,7 @@ async function requestAdzuna(params = {}) {
   if (where) search.set("where", where);
 
   if (params.sort) {
-    const allowed = [
-      "relevance",
-      "date",
-      "salary",
-    ];
-
+    const allowed = ["relevance", "date", "salary"];
     if (allowed.includes(params.sort)) {
       search.set("sort_by", params.sort);
     }
@@ -297,29 +249,23 @@ async function requestAdzuna(params = {}) {
   }
 
   const fullTime =
-    params.jobType === "full_time" ||
-    params.jobType === "full-time";
-
+    params.jobType === "full_time" || params.jobType === "full-time";
   const partTime =
-    params.jobType === "part_time" ||
-    params.jobType === "part-time";
-
-  const contract =
-    params.jobType === "contract";
-
-  const permanent =
-    params.jobType === "permanent";
+    params.jobType === "part_time" || params.jobType === "part-time";
+  const contract = params.jobType === "contract";
+  const permanent = params.jobType === "permanent";
 
   if (fullTime) search.set("full_time", "1");
   if (partTime) search.set("part_time", "1");
   if (contract) search.set("contract", "1");
   if (permanent) search.set("permanent", "1");
 
-  const url =
-    `https://api.adzuna.com/v1/api/jobs/${encodeURIComponent(country)}/search/${page}?${search.toString()}`;
+  const url = `https://api.adzuna.com/v1/api/jobs/${encodeURIComponent(
+    country
+  )}/search/${page}?${search.toString()}`;
 
   return requestJson(url, {
-    family: 6,
+    family: 4,
     timeout: 30000,
     headers: {
       Accept: "application/json",
@@ -329,65 +275,33 @@ async function requestAdzuna(params = {}) {
 }
 
 function normalizeJob(job = {}) {
-  const redirectUrl =
-    job.redirect_url ||
-    job.redirectUrl ||
-    job.url ||
-    "";
+  const redirectUrl = job.redirect_url || job.redirectUrl || job.url || "";
 
   return {
-    id:
-      job.id != null
-        ? String(job.id)
-        : redirectUrl,
-
-    title:
-      safeString(job.title) ||
-      "Untitled job",
-
+    id: job.id != null ? String(job.id) : redirectUrl,
+    title: safeString(job.title) || "Untitled job",
     company:
       safeString(job.company?.display_name) ||
       safeString(job.company?.name) ||
       "Company not specified",
-
     location:
       safeString(job.location?.display_name) ||
       safeString(job.location?.area?.join?.(", ")) ||
       "Location not specified",
-
-    description:
-      safeString(job.description),
-
+    description: safeString(job.description),
     url: redirectUrl,
-
-    salaryMin:
-      Number.isFinite(Number(job.salary_min))
-        ? Number(job.salary_min)
-        : null,
-
-    salaryMax:
-      Number.isFinite(Number(job.salary_max))
-        ? Number(job.salary_max)
-        : null,
-
-    salaryPeriod:
-      safeString(job.salary_is_predicted)
-        ? "predicted"
-        : "",
-
-    created:
-      job.created || null,
-
+    salaryMin: Number.isFinite(Number(job.salary_min))
+      ? Number(job.salary_min)
+      : null,
+    salaryMax: Number.isFinite(Number(job.salary_max))
+      ? Number(job.salary_max)
+      : null,
+    salaryPeriod: safeString(job.salary_is_predicted) ? "predicted" : "",
+    created: job.created || null,
     category:
-      safeString(job.category?.label) ||
-      safeString(job.category?.tag),
-
-    contractType:
-      safeString(job.contract_type),
-
-    contractTime:
-      safeString(job.contract_time),
-
+      safeString(job.category?.label) || safeString(job.category?.tag),
+    contractType: safeString(job.contract_type),
+    contractTime: safeString(job.contract_time),
     provider: "Adzuna",
   };
 }
@@ -396,38 +310,34 @@ function normalizeJob(job = {}) {
 // IMPORT EXISTING RESUME PDF
 // ============================================================
 
-router.post(
-  "/parse-resume-file",
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: "No resume file was uploaded.",
-        });
-      }
+router.post("/parse-resume-file", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: "No resume file was uploaded.",
+      });
+    }
 
-      const pdf = await pdfParse(req.file.buffer);
-      const resumeText = String(pdf.text || "").trim();
+    const pdf = await pdfParse(req.file.buffer);
+    const resumeText = String(pdf.text || "").trim();
 
-      if (!resumeText) {
-        return res.status(422).json({
-          success: false,
-          error:
-            "The PDF does not contain readable text. Please upload a text-based PDF.",
-        });
-      }
+    if (!resumeText) {
+      return res.status(422).json({
+        success: false,
+        error:
+          "The PDF does not contain readable text. Please upload a text-based PDF.",
+      });
+    }
 
-      if (resumeText.length < 50) {
-        return res.status(422).json({
-          success: false,
-          error:
-            "The PDF contains too little readable text to analyze.",
-        });
-      }
+    if (resumeText.length < 50) {
+      return res.status(422).json({
+        success: false,
+        error: "The PDF contains too little readable text to analyze.",
+      });
+    }
 
-      const prompt = `
+    const prompt = `
 You are a professional resume parser.
 
 Extract only information actually present in this resume.
@@ -442,372 +352,282 @@ ${resumeText.slice(0, 60000)}
 ------------------------
 `;
 
-      const parsedResume =
-        await generateGeminiJSON(
-          prompt,
-          {
+    const parsedResume = await generateGeminiJSON(
+      prompt,
+      {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          contact: {
             type: "object",
             properties: {
-              name: { type: "string" },
-              contact: {
-                type: "object",
-                properties: {
-                  email: { type: "string" },
-                  phone: { type: "string" },
-                  location: { type: "string" },
-                  linkedin: { type: "string" },
-                  github: { type: "string" },
-                },
-                required: [
-                  "email",
-                  "phone",
-                  "location",
-                  "linkedin",
-                  "github",
-                ],
-              },
-              targetRole: { type: "string" },
-              summary: { type: "string" },
-              skills: {
-                type: "array",
-                items: { type: "string" },
-              },
-              experience: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    company: { type: "string" },
-                    role: { type: "string" },
-                    duration: { type: "string" },
-                    bullets: {
-                      type: "array",
-                      items: { type: "string" },
-                    },
-                  },
-                  required: [
-                    "company",
-                    "role",
-                    "duration",
-                    "bullets",
-                  ],
-                },
-              },
-              projects: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string" },
-                    description: { type: "string" },
-                    technologies: {
-                      type: "array",
-                      items: { type: "string" },
-                    },
-                  },
-                  required: [
-                    "name",
-                    "description",
-                    "technologies",
-                  ],
-                },
-              },
-              education: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    institution: { type: "string" },
-                    degree: { type: "string" },
-                    duration: { type: "string" },
-                  },
-                  required: [
-                    "institution",
-                    "degree",
-                    "duration",
-                  ],
-                },
-              },
-              certifications: {
-                type: "array",
-                items: { type: "string" },
-              },
-              achievements: {
-                type: "array",
-                items: { type: "string" },
-              },
+              email: { type: "string" },
+              phone: { type: "string" },
+              location: { type: "string" },
+              linkedin: { type: "string" },
+              github: { type: "string" },
             },
-            required: [
-              "name",
-              "contact",
-              "targetRole",
-              "summary",
-              "skills",
-              "experience",
-              "projects",
-              "education",
-              "certifications",
-              "achievements",
-            ],
+            required: ["email", "phone", "location", "linkedin", "github"],
           },
-          {
-            timeout: 60000,
-            temperature: 0.1,
-          }
-        );
+          targetRole: { type: "string" },
+          summary: { type: "string" },
+          skills: { type: "array", items: { type: "string" } },
+          experience: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                company: { type: "string" },
+                role: { type: "string" },
+                duration: { type: "string" },
+                bullets: { type: "array", items: { type: "string" } },
+              },
+              required: ["company", "role", "duration", "bullets"],
+            },
+          },
+          projects: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                description: { type: "string" },
+                technologies: { type: "array", items: { type: "string" } },
+              },
+              required: ["name", "description", "technologies"],
+            },
+          },
+          education: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                institution: { type: "string" },
+                degree: { type: "string" },
+                duration: { type: "string" },
+              },
+              required: ["institution", "degree", "duration"],
+            },
+          },
+          certifications: { type: "array", items: { type: "string" } },
+          achievements: { type: "array", items: { type: "string" } },
+        },
+        required: [
+          "name",
+          "contact",
+          "targetRole",
+          "summary",
+          "skills",
+          "experience",
+          "projects",
+          "education",
+          "certifications",
+          "achievements",
+        ],
+      },
+      { timeout: 60000, temperature: 0.1 }
+    );
 
-      return res.json({
-        success: true,
-        resume: parsedResume,
-        text: resumeText,
-        fileName: req.file.originalname || "resume.pdf",
-      });
-    } catch (error) {
-      console.error(
-        "❌ Resume PDF Import Error:",
-        error
-      );
+    return res.json({
+      success: true,
+      resume: parsedResume,
+      text: resumeText,
+      fileName: req.file.originalname || "resume.pdf",
+    });
+  } catch (error) {
+    console.error("❌ Resume PDF Import Error:", error);
 
-      const provider = normalizeProviderError(error);
+    const provider = normalizeProviderError(error);
 
-      return res.status(provider.status).json({
-        success: false,
-        code: provider.code,
-        error: provider.message,
-        message: provider.message,
-      });
-    }
+    return res.status(provider.status).json({
+      success: false,
+      code: provider.code,
+      error: provider.message,
+      message: provider.message,
+    });
   }
-);
+});
 
 // ============================================================
 // AI RESUME GENERATION + MONGODB SAVE
 // ============================================================
 
-router.post(
-  "/generate",
-  async (req, res) => {
-    try {
-      const {
-        data,
-        resumeId = null,
-      } = req.body || {};
+router.post("/generate", async (req, res) => {
+  try {
+    const { data, resumeId = null } = req.body || {};
 
-      if (!req.userId) {
-        return res.status(401).json({
-          success: false,
-          code: "AUTH_REQUIRED",
-          message:
-            "Please log in before generating or saving a resume.",
-        });
-      }
-
-      if (!data || typeof data !== "object") {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_RESUME_DATA",
-          message: "Missing or invalid resume data.",
-        });
-      }
-
-      console.log(
-        "📝 AI Resume generation started for:",
-        data.fullName || "Unknown candidate"
-      );
-
-      const generatedResume =
-        await callGemini(data);
-
-      if (
-        !generatedResume ||
-        typeof generatedResume !== "object"
-      ) {
-        return res.status(502).json({
-          success: false,
-          code: "INVALID_AI_RESPONSE",
-          message:
-            "Gemini returned an invalid resume response.",
-        });
-      }
-
-      const title = normalizeResumeTitle({
-        ...data,
-        ...generatedResume,
-      });
-
-      const templateId =
-        safeString(data.templateId) ||
-        safeString(data.template) ||
-        "simple-ats";
-
-      const resumeData = {
-        ...generatedResume,
-        templateId,
-        template: templateId,
-      };
-
-      let savedResume;
-
-      if (resumeId) {
-        savedResume =
-          await Resume.findOneAndUpdate(
-            {
-              _id: resumeId,
-              userId: req.userId,
-            },
-            {
-              $set: {
-                title,
-                templateId,
-                data: resumeData,
-              },
-            },
-            {
-              new: true,
-              runValidators: true,
-            }
-          );
-
-        if (!savedResume) {
-          return res.status(404).json({
-            success: false,
-            code: "RESUME_NOT_FOUND",
-            message:
-              "Resume not found or you do not have permission to edit it.",
-          });
-        }
-
-        console.log(
-          "✅ Resume updated in MongoDB:",
-          savedResume._id.toString()
-        );
-      } else {
-        savedResume = await Resume.create({
-          userId: req.userId,
-          title,
-          templateId,
-          data: resumeData,
-        });
-
-        console.log(
-          "✅ New resume saved in MongoDB:",
-          savedResume._id.toString()
-        );
-
-        logActivity(req.userId, ACTIVITY_TYPES.RESUME_CREATED, "resume", {
-          resumeId: savedResume._id,
-          templateId,
-        });
-      }
-
-      return res.status(resumeId ? 200 : 201).json({
-        success: true,
-        resume: savedResume.data,
-        resumeId: savedResume._id,
-        savedResume,
-      });
-    } catch (error) {
-      console.error(
-        "❌ AI Resume Error:",
-        error
-      );
-
-      const provider = normalizeProviderError(error);
-
-      return res.status(provider.status).json({
+    if (!req.userId) {
+      return res.status(401).json({
         success: false,
-        code: provider.code,
-        message: provider.message,
+        code: "AUTH_REQUIRED",
+        message: "Please log in before generating or saving a resume.",
       });
     }
+
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_RESUME_DATA",
+        message: "Missing or invalid resume data.",
+      });
+    }
+
+    console.log(
+      "📝 AI Resume generation started for:",
+      data.fullName || "Unknown candidate"
+    );
+
+    const generatedResume = await callGemini(data);
+
+    if (!generatedResume || typeof generatedResume !== "object") {
+      return res.status(502).json({
+        success: false,
+        code: "INVALID_AI_RESPONSE",
+        message: "Gemini returned an invalid resume response.",
+      });
+    }
+
+    const title = normalizeResumeTitle({ ...data, ...generatedResume });
+
+    const templateId =
+      safeString(data.templateId) ||
+      safeString(data.template) ||
+      "simple-ats";
+
+    const resumeData = {
+      ...generatedResume,
+      templateId,
+      template: templateId,
+    };
+
+    let savedResume;
+
+    if (resumeId) {
+      savedResume = await Resume.findOneAndUpdate(
+        { _id: resumeId, userId: req.userId },
+        { $set: { title, templateId, data: resumeData } },
+        { new: true, runValidators: true }
+      );
+
+      if (!savedResume) {
+        return res.status(404).json({
+          success: false,
+          code: "RESUME_NOT_FOUND",
+          message:
+            "Resume not found or you do not have permission to edit it.",
+        });
+      }
+
+      console.log("✅ Resume updated in MongoDB:", savedResume._id.toString());
+    } else {
+      savedResume = await Resume.create({
+        userId: req.userId,
+        title,
+        templateId,
+        data: resumeData,
+      });
+
+      console.log(
+        "✅ New resume saved in MongoDB:",
+        savedResume._id.toString()
+      );
+
+      logActivity(req.userId, ACTIVITY_TYPES.RESUME_CREATED, "resume", {
+        resumeId: savedResume._id,
+        templateId,
+      });
+    }
+
+    return res.status(resumeId ? 200 : 201).json({
+      success: true,
+      resume: savedResume.data,
+      resumeId: savedResume._id,
+      savedResume,
+    });
+  } catch (error) {
+    console.error("❌ AI Resume Error:", error);
+
+    const provider = normalizeProviderError(error);
+
+    return res.status(provider.status).json({
+      success: false,
+      code: provider.code,
+      message: provider.message,
+    });
   }
-);
+});
 
 // ============================================================
 // AI SUGGESTIONS
 // ============================================================
 
-router.post(
-  "/suggestions",
-  async (req, res) => {
-    try {
-      if (typeof generateSuggestions !== "function") {
-        return res.status(501).json({
-          success: false,
-          message:
-            "AI suggestions are not configured in gemini.js.",
-        });
-      }
-
-      const suggestions =
-        await generateSuggestions(req.body || {});
-
-      return res.json({
-        success: true,
-        suggestions,
-      });
-    } catch (error) {
-      console.error(
-        "❌ AI Suggestions Error:",
-        error
-      );
-
-      return res.status(500).json({
+router.post("/suggestions", async (req, res) => {
+  try {
+    if (typeof generateSuggestions !== "function") {
+      return res.status(501).json({
         success: false,
-        error:
-          error?.message ||
-          "AI suggestions failed",
+        message: "AI suggestions are not configured in gemini.js.",
       });
     }
+
+    const suggestions = await generateSuggestions(req.body || {});
+
+    return res.json({ success: true, suggestions });
+  } catch (error) {
+    console.error("❌ AI Suggestions Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: error?.message || "AI suggestions failed",
+    });
   }
-);
+});
 
 // ============================================================
 // MOCK INTERVIEW START
 // ============================================================
 
-router.post(
-  ["/mock-interview", "/mock-interview/start"],
-  async (req, res) => {
-    try {
-      const mode = (req.body?.mode || "").toLowerCase();
+router.post(["/mock-interview", "/mock-interview/start"], async (req, res) => {
+  try {
+    const mode = (req.body?.mode || "").toLowerCase();
 
-      if (mode === "question-bank") {
-        // Question Bank mode: Curated role-based questions without AI API (Section 1, 2, 4)
-        const response = await questionBankService.selectQuestions({
-          ...req.body,
-          userId: req.userId,
-        });
-        logActivity(req.userId, ACTIVITY_TYPES.QUESTION_BANK_INTERVIEW_STARTED, "interview", {
-          role: req.body?.role,
-          difficulty: req.body?.difficulty,
-        });
-        return res.json(response);
-      }
-
-      // AI mode (default): Gemini with Grok fallback
-      const response = await aiService.generateInterviewQuestions(req.body || {});
-      logActivity(req.userId, ACTIVITY_TYPES.AI_MOCK_INTERVIEW_STARTED, "interview", {
-        role: req.body?.role,
-        difficulty: req.body?.difficulty,
+    if (mode === "question-bank") {
+      const response = await questionBankService.selectQuestions({
+        ...req.body,
+        userId: req.userId,
       });
-      return res.json({
-        ...response,
-        mode: "ai",
-      });
-    } catch (error) {
-      console.error("❌ Mock Interview Error:", error);
-
-      const status = error.status || 500;
-      return res.status(status).json({
-        success: false,
-        code: error.code || "MOCK_INTERVIEW_ERROR",
-        error: error.message || "Mock interview generation failed",
-        message: error.message || "Mock interview generation failed",
-      });
+      logActivity(
+        req.userId,
+        ACTIVITY_TYPES.QUESTION_BANK_INTERVIEW_STARTED,
+        "interview",
+        { role: req.body?.role, difficulty: req.body?.difficulty }
+      );
+      return res.json(response);
     }
+
+    // AI mode (default): Gemini with Grok fallback
+    const response = await aiService.generateInterviewQuestions(
+      req.body || {}
+    );
+    logActivity(
+      req.userId,
+      ACTIVITY_TYPES.AI_MOCK_INTERVIEW_STARTED,
+      "interview",
+      { role: req.body?.role, difficulty: req.body?.difficulty }
+    );
+    return res.json({ ...response, mode: "ai" });
+  } catch (error) {
+    console.error("❌ Mock Interview Error:", error);
+
+    const status = error.status || 500;
+    return res.status(status).json({
+      success: false,
+      code: error.code || "MOCK_INTERVIEW_ERROR",
+      error: error.message || "Mock interview generation failed",
+      message: error.message || "Mock interview generation failed",
+    });
   }
-);
+});
 
 // ============================================================
 // MOCK INTERVIEW EVALUATION
@@ -819,18 +639,21 @@ router.post(
     try {
       const mode = (req.body?.mode || "").toLowerCase();
 
-      if (mode === "question-bank" || req.body?.questionId || req.body?.useAI === false) {
-        // Question Bank mode: deterministic local evaluation (or optional AI if requested)
-        const response = await questionBankService.evaluateAnswer(req.body || {});
+      if (
+        mode === "question-bank" ||
+        req.body?.questionId ||
+        req.body?.useAI === false
+      ) {
+        const response = await questionBankService.evaluateAnswer(
+          req.body || {}
+        );
         return res.json(response);
       }
 
-      // AI mode: Gemini with Grok fallback
-      const response = await aiService.evaluateInterviewAnswer(req.body || {});
-      return res.json({
-        ...response,
-        mode: "ai",
-      });
+      const response = await aiService.evaluateInterviewAnswer(
+        req.body || {}
+      );
+      return res.json({ ...response, mode: "ai" });
     } catch (error) {
       console.error("❌ Interview Evaluation Error:", error);
 
@@ -849,38 +672,39 @@ router.post(
 // MOCK INTERVIEW SAVE & CAREER PROGRESS
 // ============================================================
 
-router.post(
-  ["/save-interview", "/mock-interview/save"],
-  async (req, res) => {
-    try {
-      const response = await questionBankService.saveInterviewSession({
-        ...req.body,
-        userId: req.userId,
-      });
+router.post(["/save-interview", "/mock-interview/save"], async (req, res) => {
+  try {
+    const response = await questionBankService.saveInterviewSession({
+      ...req.body,
+      userId: req.userId,
+    });
 
-      const mode = (req.body?.mode || "").toLowerCase();
-      if (mode === "question-bank") {
-        logActivity(req.userId, ACTIVITY_TYPES.QUESTION_BANK_INTERVIEW_COMPLETED, "interview", {
-          role: req.body?.role,
-          score: req.body?.score,
-        });
-      } else {
-        logActivity(req.userId, ACTIVITY_TYPES.AI_MOCK_INTERVIEW_COMPLETED, "interview", {
-          role: req.body?.role,
-          score: req.body?.score,
-        });
-      }
-
-      return res.json(response);
-    } catch (error) {
-      console.error("❌ Save Interview Error:", error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to save interview result",
-      });
+    const mode = (req.body?.mode || "").toLowerCase();
+    if (mode === "question-bank") {
+      logActivity(
+        req.userId,
+        ACTIVITY_TYPES.QUESTION_BANK_INTERVIEW_COMPLETED,
+        "interview",
+        { role: req.body?.role, score: req.body?.score }
+      );
+    } else {
+      logActivity(
+        req.userId,
+        ACTIVITY_TYPES.AI_MOCK_INTERVIEW_COMPLETED,
+        "interview",
+        { role: req.body?.role, score: req.body?.score }
+      );
     }
+
+    return res.json(response);
+  } catch (error) {
+    console.error("❌ Save Interview Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to save interview result",
+    });
   }
-);
+});
 
 router.get("/interview-latest-score", async (req, res) => {
   try {
@@ -909,8 +733,14 @@ router.post(
   ["/career-recommendations", "/career-recommendation"],
   async (req, res) => {
     try {
-      const response = await aiService.generateCareerRecommendations(req.body || {});
-      logActivity(req.userId, ACTIVITY_TYPES.CAREER_ASSISTANT_USED, "careerAssistant");
+      const response = await aiService.generateCareerRecommendations(
+        req.body || {}
+      );
+      logActivity(
+        req.userId,
+        ACTIVITY_TYPES.CAREER_ASSISTANT_USED,
+        "careerAssistant"
+      );
       return res.json(response);
     } catch (error) {
       console.error("❌ Career Recommendations Error:", error);
@@ -930,38 +760,32 @@ router.post(
 // JOB MATCH ANALYSIS
 // ============================================================
 
-router.post(
-  "/job-match",
-  async (req, res) => {
-    try {
-      const {
-        targetRole,
-        jobDescription,
-        resume,
-      } = req.body || {};
+router.post("/job-match", async (req, res) => {
+  try {
+    const { targetRole, jobDescription, resume } = req.body || {};
 
-      if (!safeString(targetRole)) {
-        return res.status(400).json({
-          success: false,
-          message: "Target job title is required.",
-        });
-      }
+    if (!safeString(targetRole)) {
+      return res.status(400).json({
+        success: false,
+        message: "Target job title is required.",
+      });
+    }
 
-      if (!safeString(jobDescription)) {
-        return res.status(400).json({
-          success: false,
-          message: "Job description is required.",
-        });
-      }
+    if (!safeString(jobDescription)) {
+      return res.status(400).json({
+        success: false,
+        message: "Job description is required.",
+      });
+    }
 
-      if (!safeString(resume)) {
-        return res.status(400).json({
-          success: false,
-          message: "Resume content is required.",
-        });
-      }
+    if (!safeString(resume)) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume content is required.",
+      });
+    }
 
-      const prompt = `
+    const prompt = `
 Compare the candidate resume with the job description.
 Return ONLY valid JSON.
 Do not invent candidate experience or skills.
@@ -976,111 +800,82 @@ RESUME:
 ${resume.slice(0, 50000)}
 `;
 
-      const result =
-        await generateGeminiJSON(
-          prompt,
-          {
+    const strArr = { type: "array", items: { type: "string" } };
+
+    const result = await generateGeminiJSON(
+      prompt,
+      {
+        type: "object",
+        properties: {
+          score: { type: "number" },
+          summary: { type: "string" },
+          breakdown: {
             type: "object",
             properties: {
-              score: { type: "number" },
-              summary: { type: "string" },
-              breakdown: {
-                type: "object",
-                properties: {
-                  skills: { type: "number" },
-                  experience: { type: "number" },
-                  education: { type: "number" },
-                  keywords: { type: "number" },
-                },
-                required: [
-                  "skills",
-                  "experience",
-                  "education",
-                  "keywords",
-                ],
-              },
-              matchedSkills: {
-                type: "array",
-                items: { type: "string" },
-              },
-              missingSkills: {
-                type: "array",
-                items: { type: "string" },
-              },
-              requiredKeywords: {
-                type: "array",
-                items: { type: "string" },
-              },
-              preferredKeywords: {
-                type: "array",
-                items: { type: "string" },
-              },
-              experienceGaps: {
-                type: "array",
-                items: { type: "string" },
-              },
-              improvements: {
-                type: "array",
-                items: { type: "string" },
-              },
-              interviewTopics: {
-                type: "array",
-                items: { type: "string" },
-              },
+              skills: { type: "number" },
+              experience: { type: "number" },
+              education: { type: "number" },
+              keywords: { type: "number" },
             },
-            required: [
-              "score",
-              "summary",
-              "breakdown",
-              "matchedSkills",
-              "missingSkills",
-              "requiredKeywords",
-              "preferredKeywords",
-              "experienceGaps",
-              "improvements",
-              "interviewTopics",
-            ],
+            required: ["skills", "experience", "education", "keywords"],
           },
-          { temperature: 0.2, timeout: 90000 }
-        );
-
-      logActivity(req.userId, ACTIVITY_TYPES.JOB_MATCH, "jobMatch", {
-        targetRole,
-      });
-
-      return res.json({
-        success: true,
-        score: safeNumber(result?.score),
-        summary: safeString(result?.summary),
-        breakdown: {
-          skills: safeNumber(result?.breakdown?.skills),
-          experience: safeNumber(result?.breakdown?.experience),
-          education: safeNumber(result?.breakdown?.education),
-          keywords: safeNumber(result?.breakdown?.keywords),
+          matchedSkills: strArr,
+          missingSkills: strArr,
+          requiredKeywords: strArr,
+          preferredKeywords: strArr,
+          experienceGaps: strArr,
+          improvements: strArr,
+          interviewTopics: strArr,
         },
-        matchedSkills: safeArray(result?.matchedSkills),
-        missingSkills: safeArray(result?.missingSkills),
-        requiredKeywords: safeArray(result?.requiredKeywords),
-        preferredKeywords: safeArray(result?.preferredKeywords),
-        experienceGaps: safeArray(result?.experienceGaps),
-        improvements: safeArray(result?.improvements),
-        interviewTopics: safeArray(result?.interviewTopics),
-      });
-    } catch (error) {
-      console.error("❌ Job Match Error:", error);
+        required: [
+          "score",
+          "summary",
+          "breakdown",
+          "matchedSkills",
+          "missingSkills",
+          "requiredKeywords",
+          "preferredKeywords",
+          "experienceGaps",
+          "improvements",
+          "interviewTopics",
+        ],
+      },
+      { temperature: 0.2, timeout: 90000 }
+    );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to analyze the job match right now.",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error?.message
-            : undefined,
-      });
-    }
+    logActivity(req.userId, ACTIVITY_TYPES.JOB_MATCH, "jobMatch", {
+      targetRole,
+    });
+
+    return res.json({
+      success: true,
+      score: safeNumber(result?.score),
+      summary: safeString(result?.summary),
+      breakdown: {
+        skills: safeNumber(result?.breakdown?.skills),
+        experience: safeNumber(result?.breakdown?.experience),
+        education: safeNumber(result?.breakdown?.education),
+        keywords: safeNumber(result?.breakdown?.keywords),
+      },
+      matchedSkills: safeArray(result?.matchedSkills),
+      missingSkills: safeArray(result?.missingSkills),
+      requiredKeywords: safeArray(result?.requiredKeywords),
+      preferredKeywords: safeArray(result?.preferredKeywords),
+      experienceGaps: safeArray(result?.experienceGaps),
+      improvements: safeArray(result?.improvements),
+      interviewTopics: safeArray(result?.interviewTopics),
+    });
+  } catch (error) {
+    console.error("❌ Job Match Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to analyze the job match right now.",
+      error:
+        process.env.NODE_ENV === "development" ? error?.message : undefined,
+    });
   }
-);
+});
 
 // ============================================================
 // ATS RESUME ANALYSIS
@@ -1094,9 +889,7 @@ router.post(
   ]),
   async (req, res) => {
     try {
-      const file =
-        req.files?.file?.[0] ||
-        req.files?.resume?.[0];
+      const file = req.files?.file?.[0] || req.files?.resume?.[0];
 
       if (!file) {
         return res.status(400).json({
@@ -1105,16 +898,11 @@ router.post(
         });
       }
 
-      const fileName =
-        file.originalname || "";
-      const lowerName =
-        fileName.toLowerCase();
-      const mime =
-        String(file.mimetype || "").toLowerCase();
+      const fileName = file.originalname || "";
+      const lowerName = fileName.toLowerCase();
+      const mime = String(file.mimetype || "").toLowerCase();
 
-      const isPDF =
-        mime === "application/pdf" ||
-        lowerName.endsWith(".pdf");
+      const isPDF = mime === "application/pdf" || lowerName.endsWith(".pdf");
 
       const isDOCX =
         mime ===
@@ -1135,13 +923,10 @@ router.post(
         const pdf = await pdfParse(file.buffer);
         resumeText = String(pdf.text || "").trim();
       } else {
-        const extracted =
-          await mammoth.extractRawText({
-            buffer: file.buffer,
-          });
-        resumeText = String(
-          extracted.value || ""
-        ).trim();
+        const extracted = await mammoth.extractRawText({
+          buffer: file.buffer,
+        });
+        resumeText = String(extracted.value || "").trim();
       }
 
       if (resumeText.length < 50) {
@@ -1161,67 +946,59 @@ RESUME:
 ${resumeText.slice(0, 50000)}
 `;
 
-      const result =
-        await generateGeminiJSON(
-          prompt,
-          {
-            type: "object",
-            properties: {
-              score: { type: "number" },
-              summary: { type: "string" },
-              keywordScore: { type: "number" },
-              contentScore: { type: "number" },
-              formatting: { type: "number" },
-              contactScore: { type: "number" },
-              keywords: {
-                type: "array",
-                items: { type: "string" },
+      const strArr = { type: "array", items: { type: "string" } };
+
+      const result = await generateGeminiJSON(
+        prompt,
+        {
+          type: "object",
+          properties: {
+            score: { type: "number" },
+            summary: { type: "string" },
+            keywordScore: { type: "number" },
+            contentScore: { type: "number" },
+            formatting: { type: "number" },
+            contactScore: { type: "number" },
+            keywords: strArr,
+            missingKeywords: strArr,
+            suggestions: strArr,
+            sections: {
+              type: "object",
+              properties: {
+                contact: { type: "string" },
+                summary: { type: "string" },
+                skills: { type: "string" },
+                experience: { type: "string" },
+                projects: { type: "string" },
+                education: { type: "string" },
+                certifications: { type: "string" },
               },
-              missingKeywords: {
-                type: "array",
-                items: { type: "string" },
-              },
-              suggestions: {
-                type: "array",
-                items: { type: "string" },
-              },
-              sections: {
-                type: "object",
-                properties: {
-                  contact: { type: "string" },
-                  summary: { type: "string" },
-                  skills: { type: "string" },
-                  experience: { type: "string" },
-                  projects: { type: "string" },
-                  education: { type: "string" },
-                  certifications: { type: "string" },
-                },
-                required: [
-                  "contact",
-                  "summary",
-                  "skills",
-                  "experience",
-                  "projects",
-                  "education",
-                  "certifications",
-                ],
-              },
+              required: [
+                "contact",
+                "summary",
+                "skills",
+                "experience",
+                "projects",
+                "education",
+                "certifications",
+              ],
             },
-            required: [
-              "score",
-              "summary",
-              "keywordScore",
-              "contentScore",
-              "formatting",
-              "contactScore",
-              "keywords",
-              "missingKeywords",
-              "suggestions",
-              "sections",
-            ],
           },
-          { temperature: 0.15, timeout: 90000 }
-        );
+          required: [
+            "score",
+            "summary",
+            "keywordScore",
+            "contentScore",
+            "formatting",
+            "contactScore",
+            "keywords",
+            "missingKeywords",
+            "suggestions",
+            "sections",
+          ],
+        },
+        { temperature: 0.15, timeout: 90000 }
+      );
 
       const resultData = {
         score: safeNumber(result?.score),
@@ -1258,8 +1035,7 @@ ${resumeText.slice(0, 50000)}
       return res.status(500).json({
         success: false,
         message:
-          error?.message ||
-          "Unable to analyze the resume right now.",
+          error?.message || "Unable to analyze the resume right now.",
       });
     }
   }
@@ -1267,7 +1043,15 @@ ${resumeText.slice(0, 50000)}
 
 // ============================================================
 // SKILL GAP ANALYSIS
+// Replace everything between the "SKILL GAP ANALYSIS" header and the
+// "LIVE JOBS - ADZUNA" header in your routes file with this block.
 // ============================================================
+
+const SKILL_GAP_MIME = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt: "text/plain",
+};
 
 const skillGapUpload = multer({
   storage: multer.memoryStorage(),
@@ -1276,171 +1060,43 @@ const skillGapUpload = multer({
     const name = String(file?.originalname || "").toLowerCase();
     const mime = String(file?.mimetype || "").toLowerCase();
 
-    const isPDF =
-      mime === "application/pdf" ||
-      name.endsWith(".pdf");
+    const isPDF = mime === SKILL_GAP_MIME.pdf || name.endsWith(".pdf");
+    const isDOCX = mime === SKILL_GAP_MIME.docx || name.endsWith(".docx");
+    const isTXT = mime === SKILL_GAP_MIME.txt || name.endsWith(".txt");
 
-    const isDOCX =
-      mime ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      name.endsWith(".docx");
+    if (isPDF || isDOCX || isTXT) return cb(null, true);
 
-    const isTXT =
-      mime === "text/plain" ||
-      name.endsWith(".txt");
-
-    if (isPDF || isDOCX || isTXT) {
-      return cb(null, true);
-    }
-
-    return cb(
-      new Error(
-        "Only PDF, DOCX or TXT resume files are supported."
-      )
-    );
+    const err = new Error("Only PDF, DOCX or TXT resume files are supported.");
+    err.code = "UNSUPPORTED_FILE_TYPE";
+    return cb(err);
   },
 });
 
-router.post(
-  "/skill-gap",
-  skillGapUpload.single("file"),
-  async (req, res) => {
-    try {
-      if (!req.userId) {
-        return res.status(401).json({
-          success: false,
-          code: "AUTH_REQUIRED",
-          message:
-            "Please log in before using Skill Gap Analysis.",
-        });
-      }
+// Wraps multer so upload errors return JSON instead of Express's HTML 500 page.
+function skillGapUploadMiddleware(req, res, next) {
+  skillGapUpload.single("file")(req, res, (err) => {
+    if (!err) return next();
 
-      const targetRole = safeString(req.body?.targetRole);
-      const experienceLevel = safeString(
-        req.body?.experienceLevel,
-        "Student / Fresher"
-      );
-      const pastedResumeText = safeString(req.body?.resumeText);
-      const resumeId = safeString(req.body?.resumeId);
+    if (err instanceof multer.MulterError) {
+      const tooLarge = err.code === "LIMIT_FILE_SIZE";
+      return res.status(tooLarge ? 413 : 400).json({
+        success: false,
+        code: err.code,
+        message: tooLarge
+          ? "File is too large. Please upload a file up to 10 MB."
+          : err.message,
+      });
+    }
 
-      if (!targetRole) {
-        return res.status(400).json({
-          success: false,
-          code: "TARGET_ROLE_REQUIRED",
-          message: "Please enter your target role.",
-        });
-      }
+    return res.status(400).json({
+      success: false,
+      code: err.code || "UPLOAD_FAILED",
+      message: err.message || "Unable to process the uploaded file.",
+    });
+  });
+}
 
-      let resumeText = "";
-      let sourceType = "text";
-      let fileName = "";
-
-      if (req.file) {
-        fileName = safeString(
-          req.file.originalname,
-          "resume"
-        );
-
-        console.log("");
-        console.log(
-          "=================================================="
-        );
-        console.log("📊 SKILL GAP ANALYSIS");
-        console.log(
-          "=================================================="
-        );
-        console.log("👤 User ID:", req.userId);
-        console.log("🎯 Target role:", targetRole);
-        console.log("📄 File:", fileName);
-        console.log("📦 Type:", req.file.mimetype);
-        console.log(
-          "📦 Size:",
-          req.file.size,
-          "bytes"
-        );
-
-        const lowerName =
-          fileName.toLowerCase();
-
-        try {
-          if (
-            req.file.mimetype ===
-              "application/pdf" ||
-            lowerName.endsWith(".pdf")
-          ) {
-            const pdf =
-              await pdfParse(req.file.buffer);
-
-            resumeText = String(
-              pdf?.text || ""
-            ).trim();
-
-            sourceType = "pdf";
-          } else if (
-            req.file.mimetype ===
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-            lowerName.endsWith(".docx")
-          ) {
-            const extracted =
-              await mammoth.extractRawText({
-                buffer: req.file.buffer,
-              });
-
-            resumeText = String(
-              extracted?.value || ""
-            ).trim();
-
-            sourceType = "docx";
-          } else {
-            resumeText =
-              req.file.buffer
-                .toString("utf8")
-                .trim();
-
-            sourceType = "txt";
-          }
-        } catch (extractError) {
-          console.error(
-            "❌ Skill gap resume extraction failed:",
-            extractError
-          );
-
-          return res.status(422).json({
-            success: false,
-            code: "RESUME_EXTRACTION_FAILED",
-            message:
-              "We couldn't read this resume. Please upload a readable PDF, DOCX, or TXT file.",
-          });
-        }
-      } else {
-        resumeText = pastedResumeText;
-        sourceType = "text";
-      }
-
-      resumeText = String(
-        resumeText || ""
-      )
-        .replace(/\u0000/g, " ")
-        .replace(/[ \t]+/g, " ")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-
-      if (resumeText.length < 50) {
-        return res.status(422).json({
-          success: false,
-          code: "RESUME_TEXT_TOO_SHORT",
-          message:
-            "Please upload a resume or paste at least 50 characters of readable resume text.",
-        });
-      }
-
-      console.log(
-        "📝 Resume text:",
-        resumeText.length,
-        "characters"
-      );
-
-      const prompt = `
+const SKILL_GAP_PROMPT = ({ targetRole, experienceLevel, resumeText }) => `
 You are an expert career advisor, technical recruiter,
 and skills-gap analyst.
 
@@ -1482,679 +1138,488 @@ IMPORTANT RULES:
 - Return ONLY valid JSON.
 `;
 
-      const responseSchema = {
+const str = { type: "string" };
+const strArray = { type: "array", items: { type: "string" } };
+
+const SKILL_GAP_SCHEMA = {
+  type: "object",
+  properties: {
+    readinessScore: { type: "number" },
+    summary: str,
+    matchedSkills: {
+      type: "array",
+      items: {
         type: "object",
         properties: {
-          readinessScore: {
-            type: "number",
-          },
-
-          summary: {
-            type: "string",
-          },
-
-          matchedSkills: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                skill: {
-                  type: "string",
-                },
-
-                currentLevel: {
-                  type: "string",
-                },
-
-                targetLevel: {
-                  type: "string",
-                },
-
-                evidence: {
-                  type: "string",
-                },
-              },
-
-              required: [
-                "skill",
-                "currentLevel",
-                "targetLevel",
-                "evidence",
-              ],
-            },
-          },
-
-          missingSkills: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                skill: {
-                  type: "string",
-                },
-
-                currentLevel: {
-                  type: "string",
-                },
-
-                targetLevel: {
-                  type: "string",
-                },
-
-                priority: {
-                  type: "string",
-                },
-
-                why: {
-                  type: "string",
-                },
-
-                action: {
-                  type: "string",
-                },
-              },
-
-              required: [
-                "skill",
-                "currentLevel",
-                "targetLevel",
-                "priority",
-                "why",
-                "action",
-              ],
-            },
-          },
-
-          levelComparison: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                skill: {
-                  type: "string",
-                },
-
-                currentLevel: {
-                  type: "string",
-                },
-
-                targetLevel: {
-                  type: "string",
-                },
-
-                gap: {
-                  type: "string",
-                },
-              },
-
-              required: [
-                "skill",
-                "currentLevel",
-                "targetLevel",
-                "gap",
-              ],
-            },
-          },
-
-          learningRoadmap: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                phase: {
-                  type: "string",
-                },
-
-                title: {
-                  type: "string",
-                },
-
-                duration: {
-                  type: "string",
-                },
-
-                skills: {
-                  type: "array",
-                  items: {
-                    type: "string",
-                  },
-                },
-
-                actions: {
-                  type: "array",
-                  items: {
-                    type: "string",
-                  },
-                },
-              },
-
-              required: [
-                "phase",
-                "title",
-                "duration",
-                "skills",
-                "actions",
-              ],
-            },
-          },
+          skill: str,
+          currentLevel: str,
+          targetLevel: str,
+          evidence: str,
         },
-
+        required: ["skill", "currentLevel", "targetLevel", "evidence"],
+      },
+    },
+    missingSkills: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          skill: str,
+          currentLevel: str,
+          targetLevel: str,
+          priority: str,
+          why: str,
+          action: str,
+        },
         required: [
-          "readinessScore",
-          "summary",
-          "matchedSkills",
-          "missingSkills",
-          "levelComparison",
-          "learningRoadmap",
+          "skill",
+          "currentLevel",
+          "targetLevel",
+          "priority",
+          "why",
+          "action",
         ],
-      };
-
-      const aiResponse = await aiService.executeWithFallback({
-        featureName: "Skill Gap Analysis",
-        prompt,
-        systemPrompt:
-          "You are an expert career advisor and skills-gap analyst. Return ONLY valid JSON adhering to the specified schema.",
-        responseSchema,
-        options: {
-          temperature: 0.15,
-          timeout: 90000,
+      },
+    },
+    levelComparison: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          skill: str,
+          currentLevel: str,
+          targetLevel: str,
+          gap: str,
         },
-      });
+        required: ["skill", "currentLevel", "targetLevel", "gap"],
+      },
+    },
+    learningRoadmap: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          phase: str,
+          title: str,
+          duration: str,
+          skills: strArray,
+          actions: strArray,
+        },
+        required: ["phase", "title", "duration", "skills", "actions"],
+      },
+    },
+  },
+  required: [
+    "readinessScore",
+    "summary",
+    "matchedSkills",
+    "missingSkills",
+    "levelComparison",
+    "learningRoadmap",
+  ],
+};
 
-      const result = aiResponse.data;
+function normalizeSkillGapResult(result) {
+  const list = (value, max) => (Array.isArray(value) ? value.slice(0, max) : []);
 
-      const analysis = {
-        readinessScore:
-          safeNumber(
-            result?.readinessScore
-          ),
+  return {
+    readinessScore: safeNumber(result?.readinessScore),
+    summary: safeString(result?.summary),
 
-        summary:
-          safeString(
-            result?.summary
-          ),
+    matchedSkills: list(result?.matchedSkills, 30)
+      .map((item) => ({
+        skill: safeString(item?.skill),
+        currentLevel: safeString(item?.currentLevel, "Known"),
+        targetLevel: safeString(item?.targetLevel, "Required"),
+        evidence: safeString(item?.evidence),
+      }))
+      .filter((item) => item.skill),
 
-        matchedSkills:
-          Array.isArray(
-            result?.matchedSkills
-          )
-            ? result.matchedSkills
-                .slice(0, 30)
-                .map((item) => ({
-                  skill:
-                    safeString(
-                      item?.skill
-                    ),
-
-                  currentLevel:
-                    safeString(
-                      item?.currentLevel,
-                      "Known"
-                    ),
-
-                  targetLevel:
-                    safeString(
-                      item?.targetLevel,
-                      "Required"
-                    ),
-
-                  evidence:
-                    safeString(
-                      item?.evidence
-                    ),
-                }))
-                .filter(
-                  (item) =>
-                    item.skill
-                )
-            : [],
-
-        missingSkills:
-          Array.isArray(
-            result?.missingSkills
-          )
-            ? result.missingSkills
-                .slice(0, 30)
-                .map((item) => {
-                  const priority =
-                    safeString(
-                      item?.priority,
-                      "Medium"
-                    );
-
-                  return {
-                    skill:
-                      safeString(
-                        item?.skill
-                      ),
-
-                    currentLevel:
-                      safeString(
-                        item?.currentLevel,
-                        "Beginner"
-                      ),
-
-                    targetLevel:
-                      safeString(
-                        item?.targetLevel,
-                        "Working proficiency"
-                      ),
-
-                    priority:
-                      [
-                        "High",
-                        "Medium",
-                        "Low",
-                      ].includes(
-                        priority
-                      )
-                        ? priority
-                        : "Medium",
-
-                    why:
-                      safeString(
-                        item?.why
-                      ),
-
-                    action:
-                      safeString(
-                        item?.action
-                      ),
-                  };
-                })
-                .filter(
-                  (item) =>
-                    item.skill
-                )
-            : [],
-
-        levelComparison:
-          Array.isArray(
-            result?.levelComparison
-          )
-            ? result.levelComparison
-                .slice(0, 30)
-                .map((item) => ({
-                  skill:
-                    safeString(
-                      item?.skill
-                    ),
-
-                  currentLevel:
-                    safeString(
-                      item?.currentLevel,
-                      "Unknown"
-                    ),
-
-                  targetLevel:
-                    safeString(
-                      item?.targetLevel,
-                      "Required"
-                    ),
-
-                  gap:
-                    safeString(
-                      item?.gap
-                    ),
-                }))
-                .filter(
-                  (item) =>
-                    item.skill
-                )
-            : [],
-
-        learningRoadmap:
-          Array.isArray(
-            result?.learningRoadmap
-          )
-            ? result.learningRoadmap
-                .slice(0, 10)
-                .map(
-                  (
-                    item,
-                    index
-                  ) => ({
-                    phase:
-                      safeString(
-                        item?.phase,
-                        `Phase ${index + 1}`
-                      ),
-
-                    title:
-                      safeString(
-                        item?.title,
-                        "Learning phase"
-                      ),
-
-                    duration:
-                      safeString(
-                        item?.duration,
-                        "1–2 weeks"
-                      ),
-
-                    skills:
-                      safeArray(
-                        item?.skills
-                      ),
-
-                    actions:
-                      safeArray(
-                        item?.actions
-                      ),
-                  })
-                )
-            : [],
-      };
-
-      let savedResume = null;
-
-      const analysisRecord = {
-        ...analysis,
-
-        targetRole,
-
-        experienceLevel,
-
-        sourceType,
-
-        fileName,
-
-        analyzedAt:
-          new Date().toISOString(),
-      };
-
-      if (resumeId) {
-        savedResume =
-          await Resume.findOne({
-            _id: resumeId,
-            userId: req.userId,
-          });
-
-        if (!savedResume) {
-          return res.status(404).json({
-            success: false,
-            code: "RESUME_NOT_FOUND",
-            message:
-              "The selected resume was not found.",
-          });
-        }
-
-        const existingData =
-          savedResume.data &&
-          typeof savedResume.data ===
-            "object"
-            ? savedResume.data
-            : {};
-
-        const history =
-          Array.isArray(
-            existingData.skillGapHistory
-          )
-            ? existingData.skillGapHistory
-            : [];
-
-        savedResume.data = {
-          ...existingData,
-
-          skillGapAnalysis:
-            analysisRecord,
-
-          skillGapHistory: [
-            ...history.slice(-9),
-            analysisRecord,
-          ],
+    missingSkills: list(result?.missingSkills, 30)
+      .map((item) => {
+        const priority = safeString(item?.priority, "Medium");
+        return {
+          skill: safeString(item?.skill),
+          currentLevel: safeString(item?.currentLevel, "Beginner"),
+          targetLevel: safeString(item?.targetLevel, "Working proficiency"),
+          priority: ["High", "Medium", "Low"].includes(priority)
+            ? priority
+            : "Medium",
+          why: safeString(item?.why),
+          action: safeString(item?.action),
         };
+      })
+      .filter((item) => item.skill),
 
-        await savedResume.save();
+    levelComparison: list(result?.levelComparison, 30)
+      .map((item) => ({
+        skill: safeString(item?.skill),
+        currentLevel: safeString(item?.currentLevel, "Unknown"),
+        targetLevel: safeString(item?.targetLevel, "Required"),
+        gap: safeString(item?.gap),
+      }))
+      .filter((item) => item.skill),
 
-        console.log(
-          "✅ Skill gap analysis saved to existing resume:",
-          String(
-            savedResume._id
-          )
-        );
-      } else {
-        savedResume =
-          await Resume.create({
-            userId: req.userId,
+    learningRoadmap: list(result?.learningRoadmap, 10).map((item, index) => ({
+      phase: safeString(item?.phase, `Phase ${index + 1}`),
+      title: safeString(item?.title, "Learning phase"),
+      duration: safeString(item?.duration, "1–2 weeks"),
+      skills: safeArray(item?.skills),
+      actions: safeArray(item?.actions),
+    })),
+  };
+}
 
-            title:
-              `${targetRole} Skill Gap Analysis`,
+async function extractResumeText(file) {
+  const fileName = safeString(file.originalname, "resume");
+  const lowerName = fileName.toLowerCase();
+  const mime = String(file.mimetype || "").toLowerCase();
 
-            templateId:
-              "simple-ats",
+  if (mime === SKILL_GAP_MIME.pdf || lowerName.endsWith(".pdf")) {
+    const pdf = await pdfParse(file.buffer);
+    return { text: String(pdf?.text || ""), sourceType: "pdf", fileName };
+  }
 
-            data: {
-              targetRole,
+  if (mime === SKILL_GAP_MIME.docx || lowerName.endsWith(".docx")) {
+    const extracted = await mammoth.extractRawText({ buffer: file.buffer });
+    return { text: String(extracted?.value || ""), sourceType: "docx", fileName };
+  }
 
-              experienceLevel,
+  return {
+    text: file.buffer.toString("utf8"),
+    sourceType: "txt",
+    fileName,
+  };
+}
 
-              skillGapAnalysis:
-                analysisRecord,
+function cleanResumeText(text) {
+  return String(text || "")
+    .replace(/\u0000/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
-              skillGapHistory: [
-                analysisRecord,
-              ],
-            },
-          });
+function mapSkillGapError(error) {
+  const status = Number(
+    error?.status || error?.statusCode || error?.response?.status || 0
+  );
+  const message = String(error?.message || "Skill gap analysis failed.");
+  const lower = message.toLowerCase();
 
-        console.log(
-          "✅ New skill gap analysis saved:",
-          String(
-            savedResume._id
-          )
-        );
-      }
+  // Programming bugs must never be disguised as provider outages.
+  if (
+    error instanceof ReferenceError ||
+    error instanceof TypeError ||
+    error instanceof SyntaxError
+  ) {
+    return { status: 500, code: "SKILL_GAP_FAILED", message };
+  }
 
-      logActivity(req.userId, ACTIVITY_TYPES.SKILL_GAP_ANALYSIS, "skillGap", {
-        targetRole,
-      });
+  if (
+    status === 429 ||
+    lower.includes("quota") ||
+    lower.includes("rate limit") ||
+    lower.includes("resource exhausted")
+  ) {
+    return {
+      status: 429,
+      code: "GEMINI_QUOTA",
+      message: "AI quota or rate limit reached. Please try again later.",
+    };
+  }
 
-      return res.status(200).json({
-        success: true,
-        provider: aiResponse?.provider || "gemini",
-        analysis,
+  if (
+    status === 401 ||
+    status === 403 ||
+    lower.includes("api key") ||
+    lower.includes("authentication") ||
+    lower.includes("permission denied")
+  ) {
+    return {
+      status: 401,
+      code: "GEMINI_AUTH",
+      message:
+        "AI authentication failed. Please check GEMINI_API_KEY in backend/.env.",
+    };
+  }
 
-        analysisId:
-          String(
-            savedResume._id
-          ),
+  if (
+    [500, 502, 503, 504].includes(status) ||
+    lower.includes("temporarily unavailable") ||
+    lower.includes("service unavailable") ||
+    lower.includes("timeout") ||
+    lower.includes("timed out")
+  ) {
+    return {
+      status: 503,
+      code: "GEMINI_TEMPORARY_ERROR",
+      message:
+        "The AI service is temporarily unavailable. Please try again shortly.",
+    };
+  }
 
-        resumeId:
-          String(
-            savedResume._id
-          ),
+  return { status: 500, code: "SKILL_GAP_FAILED", message };
+}
 
-        message:
-          "Skill gap analysis completed successfully.",
-      });
-    } catch (error) {
-      console.error("");
-      console.error(
-        "=================================================="
-      );
-      console.error(
-        "❌ SKILL GAP ANALYSIS ERROR"
-      );
-      console.error(
-        "=================================================="
-      );
-      console.error(
-        "Message:",
-        error?.message || error
-      );
-      console.error(
-        "Stack:",
-        error?.stack || "N/A"
-      );
-      console.error(
-        "=================================================="
-      );
-      console.error("");
-
-      const status =
-        Number(
-          error?.status ||
-            error?.statusCode ||
-            error?.response?.status ||
-            0
-        );
-
-      const message =
-        String(
-          error?.message ||
-            "Skill gap analysis failed."
-        );
-
-      const lowerMessage =
-        message.toLowerCase();
-
-      if (
-        status === 429 ||
-        lowerMessage.includes(
-          "quota"
-        ) ||
-        lowerMessage.includes(
-          "rate limit"
-        ) ||
-        lowerMessage.includes(
-          "resource exhausted"
-        )
-      ) {
-        return res.status(429).json({
-          success: false,
-          code: "GEMINI_QUOTA",
-          message:
-            "Gemini API quota or rate limit reached. Please try again later.",
-        });
-      }
-
-      if (
-        status === 401 ||
-        status === 403 ||
-        lowerMessage.includes(
-          "api key"
-        ) ||
-        lowerMessage.includes(
-          "authentication"
-        ) ||
-        lowerMessage.includes(
-          "permission denied"
-        )
-      ) {
-        return res.status(401).json({
-          success: false,
-          code: "GEMINI_AUTH",
-          message:
-            "Gemini API authentication failed. Please check GEMINI_API_KEY in backend/.env.",
-        });
-      }
-
-      if (
-        status === 500 ||
-        status === 502 ||
-        status === 503 ||
-        status === 504 ||
-        lowerMessage.includes(
-          "temporarily unavailable"
-        ) ||
-        lowerMessage.includes(
-          "service unavailable"
-        ) ||
-        lowerMessage.includes(
-          "timeout"
-        ) ||
-        lowerMessage.includes(
-          "timed out"
-        )
-      ) {
-        return res.status(503).json({
-          success: false,
-          code: "GEMINI_TEMPORARY_ERROR",
-          message:
-            "The Gemini AI service is temporarily unavailable. Please try again shortly.",
-        });
-      }
-
-      return res.status(500).json({
+router.post("/skill-gap", skillGapUploadMiddleware, async (req, res) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({
         success: false,
-        code: "SKILL_GAP_FAILED",
-        message,
+        code: "AUTH_REQUIRED",
+        message: "Please log in before using Skill Gap Analysis.",
       });
     }
+
+    const targetRole = safeString(req.body?.targetRole);
+    const experienceLevel = safeString(
+      req.body?.experienceLevel,
+      "Student / Fresher"
+    );
+    const pastedResumeText = safeString(req.body?.resumeText);
+    const resumeId = safeString(req.body?.resumeId);
+
+    if (!targetRole) {
+      return res.status(400).json({
+        success: false,
+        code: "TARGET_ROLE_REQUIRED",
+        message: "Please enter your target role.",
+      });
+    }
+
+    // ---------- Resume text ----------
+    let resumeText = "";
+    let sourceType = "text";
+    let fileName = "";
+
+    if (req.file) {
+      console.log("📊 SKILL GAP ANALYSIS", {
+        userId: req.userId,
+        targetRole,
+        file: req.file.originalname,
+        type: req.file.mimetype,
+        size: req.file.size,
+      });
+
+      try {
+        const extracted = await extractResumeText(req.file);
+        resumeText = extracted.text;
+        sourceType = extracted.sourceType;
+        fileName = extracted.fileName;
+      } catch (extractError) {
+        console.error("❌ Skill gap resume extraction failed:", extractError);
+        return res.status(422).json({
+          success: false,
+          code: "RESUME_EXTRACTION_FAILED",
+          message:
+            "We couldn't read this resume. Please upload a readable PDF, DOCX, or TXT file.",
+        });
+      }
+    } else {
+      resumeText = pastedResumeText;
+    }
+
+    resumeText = cleanResumeText(resumeText);
+
+    if (resumeText.length < 50) {
+      return res.status(422).json({
+        success: false,
+        code: "RESUME_TEXT_TOO_SHORT",
+        message:
+          "Please upload a resume or paste at least 50 characters of readable resume text.",
+      });
+    }
+
+    console.log("📝 Resume text:", resumeText.length, "characters");
+
+    // ---------- AI call (with cache) ----------
+    // FIX: `provider` and `result` live in the outer scope so they are
+    // available when building the response, whether cached or not.
+    const cacheKey = aiService.getCacheKey("skill-gap-route-v2", {
+      targetRole,
+      experienceLevel,
+      resumeText: resumeText.slice(0, 500),
+    });
+
+    let result = null;
+    let provider = "gemini";
+
+    const cached = aiService.getCachedResult(cacheKey);
+
+    if (cached) {
+      console.log(`[AI] Returning cached skill gap analysis for ${targetRole}`);
+      // Cache stores { data, provider }; tolerate older plain-data entries.
+      result = cached.data || cached;
+      provider = cached.provider || provider;
+    } else {
+      const aiResponse = await aiService.executeWithFallback({
+        featureName: "Skill Gap Analysis",
+        prompt: SKILL_GAP_PROMPT({ targetRole, experienceLevel, resumeText }),
+        systemPrompt:
+          "You are an expert career advisor and skills-gap analyst. Return ONLY valid JSON adhering to the specified schema.",
+        responseSchema: SKILL_GAP_SCHEMA,
+        options: { temperature: 0.15, timeout: 90000 },
+        fallbackSynthesizer: () =>
+          aiService.synthesizeSkillGapFallback({
+            targetRole,
+            experienceLevel,
+            resumeText,
+          }),
+      });
+
+      result = aiResponse?.data || null;
+      provider = aiResponse?.provider || provider;
+
+      if (result) {
+        aiService.setCachedResult(cacheKey, { data: result, provider });
+      }
+    }
+
+    if (!result || typeof result !== "object") {
+      return res.status(502).json({
+        success: false,
+        code: "INVALID_AI_RESPONSE",
+        message: "The AI service returned an invalid response. Please try again.",
+      });
+    }
+
+    const analysis = normalizeSkillGapResult(result);
+
+    // ---------- Save ----------
+    const analysisRecord = {
+      ...analysis,
+      targetRole,
+      experienceLevel,
+      sourceType,
+      fileName,
+      analyzedAt: new Date().toISOString(),
+    };
+
+    let savedResume = null;
+
+    if (resumeId) {
+      savedResume = await Resume.findOne({
+        _id: resumeId,
+        userId: req.userId,
+      });
+
+      if (!savedResume) {
+        return res.status(404).json({
+          success: false,
+          code: "RESUME_NOT_FOUND",
+          message: "The selected resume was not found.",
+        });
+      }
+
+      const existingData =
+        savedResume.data && typeof savedResume.data === "object"
+          ? savedResume.data
+          : {};
+
+      const history = Array.isArray(existingData.skillGapHistory)
+        ? existingData.skillGapHistory
+        : [];
+
+      savedResume.data = {
+        ...existingData,
+        skillGapAnalysis: analysisRecord,
+        skillGapHistory: [...history.slice(-9), analysisRecord],
+      };
+
+      // Needed if `data` is a Mixed type in the schema.
+      if (typeof savedResume.markModified === "function") {
+        savedResume.markModified("data");
+      }
+
+      await savedResume.save();
+
+      console.log(
+        "✅ Skill gap analysis saved to existing resume:",
+        String(savedResume._id)
+      );
+    } else {
+      savedResume = await Resume.create({
+        userId: req.userId,
+        title: `${targetRole} Skill Gap Analysis`,
+        templateId: "simple-ats",
+        data: {
+          targetRole,
+          experienceLevel,
+          skillGapAnalysis: analysisRecord,
+          skillGapHistory: [analysisRecord],
+        },
+      });
+
+      console.log("✅ New skill gap analysis saved:", String(savedResume._id));
+    }
+
+    logActivity(req.userId, ACTIVITY_TYPES.SKILL_GAP_ANALYSIS, "skillGap", {
+      targetRole,
+    });
+
+    return res.status(200).json({
+      success: true,
+      provider,
+      analysis,
+      analysisId: String(savedResume._id),
+      resumeId: String(savedResume._id),
+      message: "Skill gap analysis completed successfully.",
+    });
+  } catch (error) {
+    console.error("❌ SKILL GAP ANALYSIS ERROR");
+    console.error("Message:", error?.message || error);
+    console.error("Stack:", error?.stack || "N/A");
+
+    const mapped = mapSkillGapError(error);
+
+    return res.status(mapped.status).json({
+      success: false,
+      code: mapped.code,
+      message: mapped.message,
+    });
   }
-);
+});
 
 // ============================================================
 // LIVE JOBS - ADZUNA
 // ============================================================
 
-router.get(
-  "/jobs",
-  async (req, res) => {
-    try {
-      const query =
-        safeString(req.query.query) ||
-        safeString(req.query.role) ||
-        safeString(req.query.targetRole) ||
-        safeString(req.query.search) ||
-        safeString(req.query.title) ||
-        "software developer";
+router.get("/jobs", async (req, res) => {
+  try {
+    const query =
+      safeString(req.query.query) ||
+      safeString(req.query.role) ||
+      safeString(req.query.targetRole) ||
+      safeString(req.query.search) ||
+      safeString(req.query.title) ||
+      "software developer";
 
-      const data =
-        await requestAdzuna({
-          ...req.query,
-          query,
-        });
+    const data = await requestAdzuna({ ...req.query, query });
 
-      const jobs =
-        Array.isArray(
-          data.results
-        )
-          ? data.results.map(
-              normalizeJob
-            )
-          : [];
+    const jobs = Array.isArray(data.results)
+      ? data.results.map(normalizeJob)
+      : [];
 
-      return res.json({
-        success: true,
-        provider: "Adzuna",
-        attribution:
-          "Jobs by Adzuna",
+    return res.json({
+      success: true,
+      provider: "Adzuna",
+      attribution: "Jobs by Adzuna",
+      jobs,
+      results: jobs,
+      count: jobs.length,
+      total: Number(data.count) || jobs.length,
+      page: Number(req.query.page) || 1,
+    });
+  } catch (error) {
+    console.error("❌ Adzuna jobs error:", error?.message || error);
 
-        jobs,
-
-        results: jobs,
-
-        count:
-          jobs.length,
-
-        total:
-          Number(data.count) ||
-          jobs.length,
-
-        page:
-          Number(
-            req.query.page
-          ) || 1,
-      });
-    } catch (error) {
-      console.error(
-        "❌ Adzuna jobs error:",
-        error?.message || error
-      );
-
-      return res.status(
-        error?.status || 502
-      ).json({
-        success: false,
-        provider: "Adzuna",
-        message:
-          error?.message ||
-          "Unable to load live jobs right now.",
-      });
-    }
+    return res.status(error?.status || 502).json({
+      success: false,
+      provider: "Adzuna",
+      message: error?.message || "Unable to load live jobs right now.",
+    });
   }
-);
+});
 
 module.exports = router;

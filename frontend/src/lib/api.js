@@ -757,6 +757,19 @@ const API = (() => {
     },
 
     /* =====================================================
+       AI SECTION EDITING
+    ===================================================== */
+
+    editResumeSection: async ({ section, currentContent, instruction, targetRole, context }) => {
+      return post(
+        "/api/ai/edit-section",
+        { section, currentContent, instruction, targetRole, context },
+        true,
+        50000
+      );
+    },
+
+    /* =====================================================
        EXISTING RESUME AI
     ===================================================== */
 
