@@ -146,13 +146,26 @@ export default function TotalResumes() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 pt-2 border-t border-border">
-                   <button
-  onClick={() => navigate(`/resume/view/${r._id || r.id}`)}
+                    
+<button
+  type="button"
+  onClick={() => {
+    const resumeId = r._id || r.id;
+
+    if (!resumeId) {
+      setError("Unable to view this resume: resume ID is missing.");
+      return;
+    }
+
+    navigate(`/resume/view/${resumeId}`);
+  }}
   className="flex-1 btn btn-secondary text-sm"
-  aria-label={`View resume: ${r.title || 'Untitled'}`}
+  aria-label={`View resume: ${r.title || "Untitled"}`}
 >
   View
 </button>
+
+
                     <button 
                       onClick={() => navigate(`/resume?id=${r._id || r.id}&edit=true`)}
                       className="flex-1 btn text-sm"

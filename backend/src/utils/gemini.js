@@ -182,6 +182,29 @@ function normalizeGeminiError(error) {
 }
 
 /*
+/*
+|--------------------------------------------------------------------------
+| Model Cooldown & Candidate Selection
+|--------------------------------------------------------------------------
+*/
+
+const modelCooldowns = new Map();
+
+function isModelCoolingDown(modelName) {
+  const until = modelCooldowns.get(modelName);
+  return until && Date.now() < until;
+}
+
+function markModelRateLimited(modelName, cooldownMs = 60000) {
+  modelCooldowns.set(modelName, Date.now() + cooldownMs);
+  console.warn(
+    `[Gemini] Model "${modelName}" hit rate limit. Cooldown active for ${cooldownMs / 1000}s until ${new Date(
+      Date.now() + cooldownMs
+    ).toLocaleTimeString()}`
+  );
+}
+
+/*
 |--------------------------------------------------------------------------
 | Generate Gemini JSON
 |--------------------------------------------------------------------------
@@ -195,68 +218,94 @@ async function generateGeminiJSON(prompt, responseSchema, options = {}) {
     options.temperature !== undefined ? options.temperature : 0.2;
   const primaryModel = getModelName();
 
-  const candidateModels = [
+  // Active verified models available on Google Gemini API
+  const baseCandidateModels = [
     primaryModel,
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-flash-lite-latest",
   ].filter((m, i, a) => m && a.indexOf(m) === i);
+
+  // Prioritize models that are not currently rate-limited
+  const availableModels = baseCandidateModels.filter(
+    (m) => !isModelCoolingDown(m)
+  );
+  const coolingDownModels = baseCandidateModels.filter((m) =>
+    isModelCoolingDown(m)
+  );
+
+  const candidateModels =
+    availableModels.length > 0
+      ? [...availableModels, ...coolingDownModels]
+      : baseCandidateModels;
 
   let lastError = null;
 
   for (const model of candidateModels) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        console.log(`[Gemini] model: ${model} | Attempt ${attempt}/2`);
+    // Single try per model: if rate-limited, immediately pivot to next candidate model
+    try {
+      console.log(`[Gemini] Using model: ${model}`);
 
-        const response = await withTimeout(
-          client.models.generateContent({
-            model,
-            contents: prompt,
-            config: {
-              temperature,
-              responseMimeType: "application/json",
-              responseSchema,
-            },
-          }),
-          timeoutMs
-        );
+      const response = await withTimeout(
+        client.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            temperature,
+            responseMimeType: "application/json",
+            responseSchema,
+          },
+        }),
+        timeoutMs
+      );
 
-        const text = response?.text;
+      const text = response?.text;
 
-        if (!text) {
-          const error = new Error("Gemini returned an empty response.");
-          error.code = "GEMINI_EMPTY_RESPONSE";
-          error.status = 502;
-          throw error;
-        }
-
-        return parseGeminiJson(text);
-      } catch (error) {
-        lastError = error;
-        const normalized = normalizeGeminiError(error);
-        console.error(`[Gemini] Error (${model} attempt ${attempt}):`, normalized.message);
-
-        const isTemporary =
-          normalized.status === 429 ||
-          normalized.status === 503 ||
-          normalized.code === "GEMINI_TIMEOUT" ||
-          normalized.code === "GEMINI_HIGH_DEMAND";
-
-        if (!isTemporary) {
-          // If model is not found or authentication error, try next candidate model
-          break;
-        }
-
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, attempt * 1500));
-        }
+      if (!text) {
+        const error = new Error("Gemini returned an empty response.");
+        error.code = "GEMINI_EMPTY_RESPONSE";
+        error.status = 502;
+        throw error;
       }
+
+      return parseGeminiJson(text);
+    } catch (error) {
+      lastError = error;
+      const normalized = normalizeGeminiError(error);
+      console.error(`[Gemini] Error with model "${model}":`, normalized.message);
+
+      // On rate-limit or quota, mark this model in cooldown and immediately try the next model
+      if (
+        normalized.status === 429 ||
+        normalized.code === "GEMINI_QUOTA" ||
+        String(error?.message || "").toLowerCase().includes("quota") ||
+        String(error?.message || "").toLowerCase().includes("rate limit") ||
+        String(error?.message || "").toLowerCase().includes("resource_exhausted")
+      ) {
+        markModelRateLimited(model, 60000);
+        console.warn(`[Gemini] Pivoting immediately from rate-limited model "${model}" to next candidate.`);
+        continue;
+      }
+
+      const isTemporary =
+        normalized.status === 503 ||
+        normalized.code === "GEMINI_TIMEOUT" ||
+        normalized.code === "GEMINI_HIGH_DEMAND";
+
+      if (isTemporary) {
+        // High demand on this model - pivot to next model
+        console.warn(`[Gemini] Temporary issue on "${model}". Pivoting to next candidate.`);
+        continue;
+      }
+
+      // Non-temporary error (e.g. invalid argument or model not found)
+      continue;
     }
   }
 
   const finalNormalized = normalizeGeminiError(lastError);
-  console.error("[Gemini] Final Error:", finalNormalized.message);
+  console.error("[Gemini] All candidate models exhausted. Final Error:", finalNormalized.message);
   throw finalNormalized;
 }
 

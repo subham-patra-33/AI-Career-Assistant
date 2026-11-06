@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -12,9 +12,10 @@ import {
   X,
 } from "lucide-react";
 import BackButton from "../BackButton";
+import { getToken } from "../../lib/auth";
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+  import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 const demoCareers = [
   {
@@ -51,6 +52,9 @@ export default function CareerRecommendations() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+
+  const lastSubmitRef = useRef(0);
+  const cacheRef = useRef(new Map());
 
   const careers = recommendations.length
     ? recommendations
@@ -98,8 +102,21 @@ export default function CareerRecommendations() {
   };
 
   const generate = async () => {
+    if (loading) return;
+
+    // Debounce rapid clicks (2s)
+    const now = Date.now();
+    if (now - lastSubmitRef.current < 2000) return;
+    lastSubmitRef.current = now;
+
     if (!resume.trim()) {
       setError("Upload or paste your resume first.");
+      return;
+    }
+
+    const cacheKey = `${target.trim().toLowerCase()}|${experience}|${resume.trim().slice(0, 300)}`;
+    if (cacheRef.current.has(cacheKey)) {
+      setRecommendations(cacheRef.current.get(cacheKey));
       return;
     }
 
@@ -107,13 +124,19 @@ export default function CareerRecommendations() {
     setError("");
 
     try {
+      const token = getToken();
+      const headers = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
         `${API_URL}/api/ai/career-recommendations`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify({
             targetRole: target,
             experienceLevel: experience,
@@ -136,11 +159,12 @@ export default function CareerRecommendations() {
         data?.recommendations ||
         [];
 
-      setRecommendations(
-        Array.isArray(result)
-          ? result
-          : result?.recommendations || []
-      );
+      const finalRecommendations = Array.isArray(result)
+        ? result
+        : result?.recommendations || [];
+
+      setRecommendations(finalRecommendations);
+      cacheRef.current.set(cacheKey, finalRecommendations);
     } catch (err) {
       setError(err.message || "Something went wrong.");
     } finally {

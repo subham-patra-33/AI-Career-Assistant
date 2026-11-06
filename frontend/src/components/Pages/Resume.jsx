@@ -734,6 +734,48 @@ export default function Resume() {
   const [showEditor, setShowEditor] =
     useState(false);
 
+  // Upload & Parsing state
+  const [isParsingResume, setIsParsingResume] = useState(false);
+  const [parseStatus, setParseStatus] = useState("");
+  const [hasImportedResume, setHasImportedResume] = useState(false);
+
+  // AI Section Editing state
+  const [isApplyingAi, setIsApplyingAi] = useState(false);
+  const [activeAiSection, setActiveAiSection] = useState(null);
+  const [aiStatusMessage, setAiStatusMessage] = useState("");
+  const [aiPreviewData, setAiPreviewData] = useState(null); // { section, data }
+
+  // Saving state
+  const [isSavingResume, setIsSavingResume] = useState(false);
+
+  // Dynamic Section View Modes ("structured" | "text")
+  const [sectionViewMode, setSectionViewMode] = useState({
+    experience: "structured",
+    projects: "structured",
+    education: "structured",
+  });
+
+  // RESTORE FROM SESSION STORAGE (for navigation and page refreshes)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get("id");
+    if (id) return; // Managed by DB loader
+
+    try {
+      const storedResume = sessionStorage.getItem("importedResume");
+      const storedForm = sessionStorage.getItem("resumeFormData");
+      if (storedResume && storedForm) {
+        const parsedResume = JSON.parse(storedResume);
+        const parsedForm = JSON.parse(storedForm);
+        setGeneratedResume(parsedResume);
+        setForm(parsedForm);
+        setHasImportedResume(true);
+      }
+    } catch (e) {
+      console.warn("Could not restore from sessionStorage:", e);
+    }
+  }, [location.search]);
+
   // ==========================================================
   // LOAD SAVED RESUME FROM MONGODB
   // ==========================================================
@@ -1235,19 +1277,19 @@ education:
         splitList(form.skills),
 
       experience:
-  uploaded?.experience?.length
-    ? uploaded.experience
-    : String(form.experience || "").trim(),
+        Array.isArray(form.experience) && form.experience.length
+          ? form.experience
+          : String(form.experience || "").trim(),
 
-projects:
-  uploaded?.projects?.length
-    ? uploaded.projects
-    : String(form.projects || "").trim(),
+      projects:
+        Array.isArray(form.projects) && form.projects.length
+          ? form.projects
+          : String(form.projects || "").trim(),
 
-education:
-  uploaded?.education?.length
-    ? uploaded.education
-    : String(form.education || "").trim(),
+      education:
+        Array.isArray(form.education) && form.education.length
+          ? form.education
+          : String(form.education || "").trim(),
 
 
       certifications:
@@ -1285,6 +1327,60 @@ education:
     const base =
       generatedResume ||
       emptyResume;
+
+    // Experience: prefer structured generatedResume.experience if it has entries,
+    // otherwise parse form.experience into entries
+    let experienceList =
+      Array.isArray(generatedResume?.experience) && generatedResume.experience.length
+        ? generatedResume.experience
+        : [];
+
+    if (!experienceList.length && form.experience.trim()) {
+      experienceList = normalizeExperience(form.experience);
+    }
+
+    // Projects: prefer structured generatedResume.projects if it has entries,
+    // otherwise parse form.projects
+    let projectsList =
+      Array.isArray(generatedResume?.projects) && generatedResume.projects.length
+        ? generatedResume.projects
+        : [];
+
+    if (!projectsList.length && form.projects.trim()) {
+      projectsList = normalizeProjects(form.projects);
+    }
+
+    // Education: prefer structured generatedResume.education if it has entries,
+    // otherwise parse form.education
+    let educationList =
+      Array.isArray(generatedResume?.education) && generatedResume.education.length
+        ? generatedResume.education
+        : [];
+
+    if (!educationList.length && form.education.trim()) {
+      educationList = normalizeEducation(form.education);
+    }
+
+    // Skills:
+    const skillsList = form.skills.trim()
+      ? splitList(form.skills)
+      : (Array.isArray(generatedResume?.skills) && generatedResume.skills.length
+          ? generatedResume.skills
+          : []);
+
+    // Certifications:
+    const certsList = form.certifications.trim()
+      ? splitList(form.certifications)
+      : (Array.isArray(generatedResume?.certifications) && generatedResume.certifications.length
+          ? generatedResume.certifications
+          : []);
+
+    // Achievements:
+    const achievementsList = form.achievements.trim()
+      ? splitList(form.achievements)
+      : (Array.isArray(generatedResume?.achievements) && generatedResume.achievements.length
+          ? generatedResume.achievements
+          : []);
 
     return {
       ...base,
@@ -1325,34 +1421,16 @@ education:
         "Software Developer",
 
       summary:
-        generatedResume?.summary ||
         form.summary.trim() ||
+        generatedResume?.summary ||
         "Your professional summary will appear here.",
 
-      skills:
-        generatedResume?.skills?.length
-          ? generatedResume.skills
-          : splitList(form.skills),
-
-      experience:
-        generatedResume?.experience ||
-        [],
-
-      projects:
-        generatedResume?.projects ||
-        [],
-
-      education:
-        generatedResume?.education ||
-        [],
-
-      certifications:
-        generatedResume?.certifications ||
-        [],
-
-      achievements:
-        generatedResume?.achievements ||
-        [],
+      skills: skillsList,
+      experience: experienceList,
+      projects: projectsList,
+      education: educationList,
+      certifications: certsList,
+      achievements: achievementsList,
     };
   }, [
     generatedResume,
@@ -1506,15 +1584,15 @@ education:
     }
 
     if (step === 5) {
-      if (
-        resumeSource === "existing" &&
-        !uploadedFile
-      ) {
-        setError(
-          "Please upload your existing resume."
-        );
-
-        return false;
+      if (resumeSource === "existing") {
+        if (isParsingResume) {
+          setError("Please wait for your resume to finish reading and extracting information.");
+          return false;
+        }
+        if (!uploadedFile && !hasImportedResume) {
+          setError("Please upload your existing resume.");
+          return false;
+        }
       }
 
       return true;
@@ -1620,49 +1698,623 @@ education:
   // UPLOAD
   // ==========================================================
 
-  const handleUploadChange =
-    async (event) => {
-      const file =
-        event.target.files?.[0];
+  const handleUploadChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-      if (!file) return;
+    // Reset target value so re-selecting triggers onChange
+    if (event.target) event.target.value = "";
 
+    // 1. Validate file extension
+    const fileName = (file.name || "").toLowerCase();
+    const validExts = [".pdf", ".doc", ".docx"];
+    const isValidExt = validExts.some((ext) => fileName.endsWith(ext));
+    if (!isValidExt) {
+      showUserError(
+        "Unsupported File Format",
+        "Please upload a text-based PDF, DOC, or DOCX resume file.",
+        false
+      );
+      return;
+    }
+
+    // 2. Validate file size (max 8MB)
+    const MAX_SIZE = 8 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      showUserError(
+        "File Too Large",
+        "The uploaded file exceeds the 8MB limit. Please upload a smaller file.",
+        false
+      );
+      return;
+    }
+
+    if (!isAuthed()) {
+      showUserError(
+        "Login Required",
+        "Please log in before uploading your resume.",
+        false
+      );
+      return;
+    }
+
+    setIsParsingResume(true);
+    setParseStatus("Reading your resume...");
+    setError("");
+    setSuccess("");
+
+    try {
+      setParseStatus("Extracting resume information with AI...");
+      const parsePromise = API.parseResumeFile(file);
+      const atsPromise = API.uploadAts(file, form.targetRole).catch(() => null);
+
+      const [parseResult, atsRes] = await Promise.all([parsePromise, atsPromise]);
+
+      if (atsRes && !atsRes.error) {
+        setAtsResult(atsRes);
+      }
+
+      if (parseResult?.error || !parseResult?.resume) {
+        throw new Error(
+          parseResult?.message ||
+            parseResult?.error ||
+            "Unable to extract readable text from this file. If this is a scanned PDF, please upload a document with selectable text."
+        );
+      }
+
+      const imported = parseResult.resume;
+
+      // Verify that meaningful content was extracted
+      const hasContent =
+        imported.fullName ||
+        imported.email ||
+        imported.summary ||
+        (Array.isArray(imported.skills) && imported.skills.length > 0) ||
+        (Array.isArray(imported.experience) && imported.experience.length > 0) ||
+        (Array.isArray(imported.education) && imported.education.length > 0) ||
+        (Array.isArray(imported.projects) && imported.projects.length > 0);
+
+      if (!hasContent) {
+        throw new Error(
+          "No readable text was found in this resume. Please upload a text-based PDF, DOC, or DOCX file."
+        );
+      }
+
+      // Convert parsed structured arrays to editor text representations
+      const experienceText = Array.isArray(imported.experience)
+        ? imported.experience
+            .map((e) => {
+              const header = [e.title, e.company].filter(Boolean).join(" at ");
+              const meta = [e.date, e.location].filter(Boolean).join(" | ");
+              const desc = e.description || "";
+              const bullets = Array.isArray(e.bullets)
+                ? e.bullets.map((b) => `• ${b}`).join("\n")
+                : "";
+              return [header, meta, desc, bullets].filter(Boolean).join("\n");
+            })
+            .join("\n\n")
+        : String(imported.experience || "");
+
+      const projectsText = Array.isArray(imported.projects)
+        ? imported.projects
+            .map((p) => {
+              const header = p.title || "Project";
+              const tech = Array.isArray(p.technologies)
+                ? p.technologies.join(", ")
+                : p.technologies || "";
+              const links = [p.url, p.github].filter(Boolean).join(" | ");
+              const desc = p.description || "";
+              const bullets = Array.isArray(p.bullets)
+                ? p.bullets.map((b) => `• ${b}`).join("\n")
+                : "";
+              return [header, tech ? `Tech: ${tech}` : "", links, desc, bullets]
+                .filter(Boolean)
+                .join("\n");
+            })
+            .join("\n\n")
+        : String(imported.projects || "");
+
+      const educationText = Array.isArray(imported.education)
+        ? imported.education
+            .map((ed) => {
+              const header = [ed.degree, ed.institution].filter(Boolean).join(" — ");
+              const meta = [ed.date, ed.grade].filter(Boolean).join(" | ");
+              const desc = ed.description || "";
+              return [header, meta, desc].filter(Boolean).join("\n");
+            })
+            .join("\n\n")
+        : String(imported.education || "");
+
+      const skillsText = Array.isArray(imported.skills)
+        ? imported.skills.join(", ")
+        : String(imported.skills || "");
+
+      const certificationsText = Array.isArray(imported.certifications)
+        ? imported.certifications.join("\n")
+        : String(imported.certifications || "");
+
+      const achievementsText = Array.isArray(imported.achievements)
+        ? imported.achievements.join("\n")
+        : String(imported.achievements || "");
+
+      const newFormData = {
+        fullName: imported.fullName || "",
+        email: imported.email || "",
+        phone: imported.phone || "",
+        location: imported.location || "",
+        linkedin: imported.linkedin || "",
+        github: imported.github || "",
+        targetRole: imported.targetRole || form.targetRole || "",
+        careerLevel: form.careerLevel || "Experienced",
+        jobDescription: form.jobDescription || "",
+        summary: imported.summary || "",
+        skills: skillsText,
+        experience: experienceText,
+        projects: projectsText,
+        education: educationText,
+        certifications: certificationsText,
+        achievements: achievementsText,
+      };
+
+      // Set state immutably
       setUploadedFile(file);
-      setError("");
-      setSuccess("");
+      setForm(newFormData);
+      setGeneratedResume(imported);
+      setHasImportedResume(true);
 
-      if (!isAuthed()) {
-        showUserError(
-          "Login Required",
-          "Please log in before uploading your resume.",
-          false
-        );
-
-        return;
-      }
-
+      // Persist in sessionStorage so page reload/navigation preserves extracted data
       try {
-        const result =
-          await API.uploadAts(file);
+        sessionStorage.setItem("importedResume", JSON.stringify(imported));
+        sessionStorage.setItem("resumeFormData", JSON.stringify(newFormData));
+      } catch (storageErr) {
+        console.warn("Could not save to sessionStorage:", storageErr);
+      }
 
-        setAtsResult(result);
+      setSuccess("Resume imported successfully. All information has been extracted.");
+    } catch (err) {
+      console.error("Resume upload/parsing error:", err);
+      // Parsing failures do not replace existing resume with empty object
+      showUserError(
+        "Upload Failed",
+        err?.message || "Unable to extract text from this file. Please check the file and try again.",
+        true
+      );
+    } finally {
+      setIsParsingResume(false);
+      setParseStatus("");
+    }
+  };
 
-        setSuccess(
-          "Your resume was uploaded successfully."
-        );
-      } catch (err) {
-        console.error(
-          "Resume upload error:",
-          err
-        );
+  // ==========================================================
+  // AI SECTION EDITING HANDLERS
+  // ==========================================================
 
-        showUserError(
-          "Upload Failed",
-          "We couldn't process this resume. Please check the file and try again.",
-          true
+  const handleAiEditSection = async (sectionName, customInstruction, targetRoleOverride) => {
+    if (!sectionName) return;
+
+    if (!isAuthed()) {
+      showUserError(
+        "Login Required",
+        "Please log in before using AI section editing.",
+        false
+      );
+      return;
+    }
+
+    const instruction =
+      customInstruction ||
+      (sectionName === "summary"
+        ? "Rewrite and improve my professional summary to highlight my strengths and achievements."
+        : sectionName === "skills"
+        ? "Polish and organize my skills to maximize ATS keyword alignment."
+        : `Improve the clarity, impact, and professional tone of this ${sectionName} section.`);
+
+    setIsApplyingAi(true);
+    setActiveAiSection(sectionName);
+    setAiStatusMessage(`Improving your ${sectionName} with AI...`);
+    setError("");
+
+    let currentContent = form[sectionName] || "";
+    if (["experience", "projects", "education"].includes(sectionName)) {
+      if (Array.isArray(generatedResume?.[sectionName]) && generatedResume[sectionName].length > 0) {
+        currentContent = generatedResume[sectionName];
+      }
+    } else if (sectionName === "skills" && Array.isArray(generatedResume?.skills) && generatedResume.skills.length > 0) {
+      currentContent = generatedResume.skills;
+    }
+
+    try {
+      const response = await API.editResumeSection({
+        section: sectionName,
+        currentContent,
+        instruction,
+        targetRole: targetRoleOverride || form.targetRole || generatedResume?.targetRole || "",
+        context: {
+          jobDescription: form.jobDescription || "",
+        },
+      });
+
+      if (response?.error || !response?.success) {
+        throw new Error(
+          response?.message ||
+            response?.error ||
+            "AI editing failed. Your existing content has been preserved."
         );
       }
+
+      setAiPreviewData({
+        section: sectionName,
+        data: response.data,
+      });
+
+      setAiStatusMessage("AI changes ready! Review and Accept or Reject below.");
+    } catch (err) {
+      console.error("AI section edit error:", err);
+      showUserError(
+        "AI Section Editing",
+        err?.message || "AI editing failed. Your existing content has been preserved.",
+        false
+      );
+      setAiStatusMessage("");
+    } finally {
+      setIsApplyingAi(false);
+    }
+  };
+
+  const handleAcceptAiSection = () => {
+    if (!aiPreviewData) return;
+    const { section, data } = aiPreviewData;
+
+    if (section === "summary") {
+      const newSummary = typeof data === "string" ? data : data.summary || "";
+      setForm((prev) => ({ ...prev, summary: newSummary }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), summary: newSummary }));
+    } else if (section === "skills") {
+      const newSkills = Array.isArray(data)
+        ? data
+        : Array.isArray(data.skills)
+        ? data.skills
+        : splitList(data);
+      const skillsStr = newSkills.join(", ");
+      setForm((prev) => ({ ...prev, skills: skillsStr }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), skills: newSkills }));
+    } else if (section === "experience") {
+      const newExp = Array.isArray(data) ? data : data.experience || [];
+      const expStr = newExp
+        .map((e) =>
+          [
+            [e.title, e.company].filter(Boolean).join(" at "),
+            [e.date, e.location].filter(Boolean).join(" | "),
+            e.description,
+            ...(Array.isArray(e.bullets) ? e.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((prev) => ({ ...prev, experience: expStr }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), experience: newExp }));
+    } else if (section === "projects") {
+      const newProj = Array.isArray(data) ? data : data.projects || [];
+      const projStr = newProj
+        .map((p) =>
+          [
+            p.title || "Project",
+            Array.isArray(p.technologies) ? p.technologies.join(", ") : p.technologies,
+            [p.url, p.github].filter(Boolean).join(" | "),
+            p.description,
+            ...(Array.isArray(p.bullets) ? p.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((prev) => ({ ...prev, projects: projStr }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), projects: newProj }));
+    } else if (section === "education") {
+      const newEdu = Array.isArray(data) ? data : data.education || [];
+      const eduStr = newEdu
+        .map((ed) =>
+          [
+            [ed.degree, ed.institution].filter(Boolean).join(" — "),
+            [ed.date, ed.grade].filter(Boolean).join(" | "),
+            ed.description,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((prev) => ({ ...prev, education: eduStr }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), education: newEdu }));
+    } else if (section === "certifications") {
+      const newCerts = Array.isArray(data) ? data : data.certifications || splitList(data);
+      setForm((prev) => ({ ...prev, certifications: newCerts.join("\n") }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), certifications: newCerts }));
+    } else if (section === "achievements") {
+      const newAch = Array.isArray(data) ? data : data.achievements || splitList(data);
+      setForm((prev) => ({ ...prev, achievements: newAch.join("\n") }));
+      setGeneratedResume((prev) => ({ ...(prev || {}), achievements: newAch }));
+    }
+
+    setAiPreviewData(null);
+    setActiveAiSection(null);
+    setSuccess("Section updated successfully.");
+  };
+
+  const handleRejectAiSection = () => {
+    setAiPreviewData(null);
+    setActiveAiSection(null);
+    setAiStatusMessage("");
+  };
+
+  // ==========================================================
+  // DYNAMIC SECTIONS HANDLERS (Manual Editing)
+  // ==========================================================
+
+  const handleAddExperience = () => {
+    const newEntry = {
+      title: "Software Engineer",
+      company: "Company Name",
+      location: "",
+      date: "2024 - Present",
+      description: "",
+      bullets: ["Developed scalable features and collaborated with cross-functional teams."],
     };
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.experience) ? prev.experience : [];
+      const updated = [...current, newEntry];
+      const expStr = updated
+        .map((e) =>
+          [
+            [e.title, e.company].filter(Boolean).join(" at "),
+            [e.date, e.location].filter(Boolean).join(" | "),
+            e.description,
+            ...(Array.isArray(e.bullets) ? e.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, experience: expStr }));
+      return { ...prev, experience: updated };
+    });
+  };
+
+  const handleDeleteExperience = (indexToDelete) => {
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.experience) ? prev.experience : [];
+      const filtered = current.filter((_, idx) => idx !== indexToDelete);
+      const expStr = filtered
+        .map((e) =>
+          [
+            [e.title, e.company].filter(Boolean).join(" at "),
+            [e.date, e.location].filter(Boolean).join(" | "),
+            e.description,
+            ...(Array.isArray(e.bullets) ? e.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, experience: expStr }));
+      return { ...prev, experience: filtered };
+    });
+  };
+
+  const handleUpdateExperienceItem = (indexToUpdate, updatedFields) => {
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.experience) ? prev.experience : [];
+      const updated = current.map((item, idx) =>
+        idx === indexToUpdate ? { ...item, ...updatedFields } : item
+      );
+      const expStr = updated
+        .map((e) =>
+          [
+            [e.title, e.company].filter(Boolean).join(" at "),
+            [e.date, e.location].filter(Boolean).join(" | "),
+            e.description,
+            ...(Array.isArray(e.bullets) ? e.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, experience: expStr }));
+      return { ...prev, experience: updated };
+    });
+  };
+
+  const handleAddProject = () => {
+    const newEntry = {
+      title: "New Project",
+      description: "Full-stack web application built to solve a key problem.",
+      technologies: ["React", "Node.js"],
+      url: "",
+      github: "",
+      bullets: ["Architected frontend and backend APIs.", "Implemented automated data flows."],
+    };
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.projects) ? prev.projects : [];
+      const updated = [...current, newEntry];
+      const projStr = updated
+        .map((p) =>
+          [
+            p.title || "Project",
+            Array.isArray(p.technologies) ? p.technologies.join(", ") : p.technologies,
+            [p.url, p.github].filter(Boolean).join(" | "),
+            p.description,
+            ...(Array.isArray(p.bullets) ? p.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, projects: projStr }));
+      return { ...prev, projects: updated };
+    });
+  };
+
+  const handleDeleteProject = (indexToDelete) => {
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.projects) ? prev.projects : [];
+      const filtered = current.filter((_, idx) => idx !== indexToDelete);
+      const projStr = filtered
+        .map((p) =>
+          [
+            p.title || "Project",
+            Array.isArray(p.technologies) ? p.technologies.join(", ") : p.technologies,
+            [p.url, p.github].filter(Boolean).join(" | "),
+            p.description,
+            ...(Array.isArray(p.bullets) ? p.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, projects: projStr }));
+      return { ...prev, projects: filtered };
+    });
+  };
+
+  const handleUpdateProjectItem = (indexToUpdate, updatedFields) => {
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.projects) ? prev.projects : [];
+      const updated = current.map((item, idx) =>
+        idx === indexToUpdate ? { ...item, ...updatedFields } : item
+      );
+      const projStr = updated
+        .map((p) =>
+          [
+            p.title || "Project",
+            Array.isArray(p.technologies) ? p.technologies.join(", ") : p.technologies,
+            [p.url, p.github].filter(Boolean).join(" | "),
+            p.description,
+            ...(Array.isArray(p.bullets) ? p.bullets.map((b) => `• ${b}`) : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, projects: projStr }));
+      return { ...prev, projects: updated };
+    });
+  };
+
+  const handleAddEducation = () => {
+    const newEntry = {
+      degree: "B.Tech in Computer Science",
+      institution: "University",
+      date: "2020 - 2024",
+      grade: "",
+      description: "",
+    };
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.education) ? prev.education : [];
+      const updated = [...current, newEntry];
+      const eduStr = updated
+        .map((ed) =>
+          [
+            [ed.degree, ed.institution].filter(Boolean).join(" — "),
+            [ed.date, ed.grade].filter(Boolean).join(" | "),
+            ed.description,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, education: eduStr }));
+      return { ...prev, education: updated };
+    });
+  };
+
+  const handleDeleteEducation = (indexToDelete) => {
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.education) ? prev.education : [];
+      const filtered = current.filter((_, idx) => idx !== indexToDelete);
+      const eduStr = filtered
+        .map((ed) =>
+          [
+            [ed.degree, ed.institution].filter(Boolean).join(" — "),
+            [ed.date, ed.grade].filter(Boolean).join(" | "),
+            ed.description,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, education: eduStr }));
+      return { ...prev, education: filtered };
+    });
+  };
+
+  const handleUpdateEducationItem = (indexToUpdate, updatedFields) => {
+    setGeneratedResume((prev) => {
+      const current = Array.isArray(prev?.education) ? prev.education : [];
+      const updated = current.map((item, idx) =>
+        idx === indexToUpdate ? { ...item, ...updatedFields } : item
+      );
+      const eduStr = updated
+        .map((ed) =>
+          [
+            [ed.degree, ed.institution].filter(Boolean).join(" — "),
+            [ed.date, ed.grade].filter(Boolean).join(" | "),
+            ed.description,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n");
+      setForm((f) => ({ ...f, education: eduStr }));
+      return { ...prev, education: updated };
+    });
+  };
+
+  // ==========================================================
+  // SAVE RESUME TO MONGODB (Account Persistence)
+  // ==========================================================
+
+  const handleSaveResume = async () => {
+    if (!isAuthed()) {
+      showUserError("Login Required", "Please log in to save your resume.", false);
+      return;
+    }
+
+    setIsSavingResume(true);
+    try {
+      const payload = {
+        title: `${livePreviewData.fullName || "My"}'s Resume`,
+        templateId: selectedTemplate || "simple-ats",
+        data: livePreviewData,
+      };
+
+      let saveResult;
+      if (resumeId) {
+        saveResult = await API.updateResume(resumeId, payload);
+      } else {
+        saveResult = await API.createResume(payload);
+        if (saveResult?._id) {
+          setResumeId(saveResult._id);
+        }
+      }
+
+      const savedId = saveResult?._id || resumeId;
+      if (savedId) {
+        localStorage.setItem("generatedResumeId", savedId);
+      }
+
+      window.dispatchEvent(new CustomEvent("resumes:changed"));
+      setSuccess("Resume saved to My Resumes successfully!");
+    } catch (saveErr) {
+      console.error("Save resume error:", saveErr);
+      showUserError(
+        "Save Failed",
+        saveErr?.message || "Unable to save resume right now.",
+        true
+      );
+    } finally {
+      setIsSavingResume(false);
+    }
+  };
 
   // ==========================================================
   // GENERATE RESUME
@@ -4406,40 +5058,41 @@ if (
                 gap-3
               "
             >
-
               <button
-  type="button"
-  onClick={downloadPDF}
-  className="
-    rounded-xl
-    border
-    border-slate-200
-    bg-white
-    px-5
-    py-3
-    text-sm
-    font-bold
-    text-slate-700
-    hover:bg-slate-50
-    dark:border-slate-700
-    dark:bg-slate-900
-    dark:text-slate-200
-    dark:hover:bg-slate-800
-  "
->
-  Download PDF
-</button>
+                type="button"
+                onClick={() => setShowEditor(false)}
+                className="
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-white
+                  px-4
+                  py-2.5
+                  text-xs
+                  font-bold
+                  text-slate-700
+                  shadow-sm
+                  transition
+                  hover:bg-slate-50
+                  dark:border-slate-700
+                  dark:bg-slate-900
+                  dark:text-slate-200
+                  dark:hover:bg-slate-800
+                "
+              >
+                ← Back to Steps
+              </button>
 
               <div>
-
                 <h1
                   className="
+                    text-lg
                     font-bold
                     text-slate-900
                     dark:text-white
                   "
                 >
-                  AI Resume Builder
+                  AI Resume Editor
                 </h1>
 
                 <p
@@ -4454,7 +5107,6 @@ if (
                     "Simple ATS"}{" "}
                   template
                 </p>
-
               </div>
 
             </div>
@@ -4463,9 +5115,31 @@ if (
               className="
                 flex
                 flex-wrap
+                items-center
                 gap-2
               "
             >
+              <button
+                type="button"
+                onClick={handleSaveResume}
+                disabled={isSavingResume}
+                className="
+                  rounded-xl
+                  bg-emerald-600
+                  px-4
+                  py-2.5
+                  text-xs
+                  font-bold
+                  text-white
+                  shadow-sm
+                  transition
+                  hover:bg-emerald-700
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+                {isSavingResume ? "Saving..." : "💾 Save Resume"}
+              </button>
 
               <button
                 type="button"
@@ -4480,19 +5154,19 @@ if (
                   bg-gradient-to-r
                   from-indigo-600
                   to-violet-600
-                  px-5
-                  py-3
-                  text-sm
+                  px-4
+                  py-2.5
+                  text-xs
                   font-bold
                   text-white
-                  shadow-lg
+                  shadow-sm
                   transition
                   hover:-translate-y-0.5
                   disabled:cursor-not-allowed
                   disabled:opacity-60
                 "
               >
-                ✨ Generate with AI
+                ✨ AI Full Generate
               </button>
 
               <button
@@ -4507,11 +5181,13 @@ if (
                   border
                   border-slate-200
                   bg-white
-                  px-5
-                  py-3
-                  text-sm
+                  px-4
+                  py-2.5
+                  text-xs
                   font-bold
                   text-slate-700
+                  shadow-sm
+                  transition
                   hover:bg-slate-50
                   dark:border-slate-700
                   dark:bg-slate-900
@@ -4519,7 +5195,7 @@ if (
                   dark:hover:bg-slate-800
                 "
               >
-                Download PDF
+                📄 Download PDF
               </button>
 
               <button
@@ -4534,11 +5210,13 @@ if (
                   border
                   border-slate-200
                   bg-white
-                  px-5
-                  py-3
-                  text-sm
+                  px-4
+                  py-2.5
+                  text-xs
                   font-bold
                   text-slate-700
+                  shadow-sm
+                  transition
                   hover:bg-slate-50
                   dark:border-slate-700
                   dark:bg-slate-900
@@ -4546,12 +5224,33 @@ if (
                   dark:hover:bg-slate-800
                 "
               >
-                Preview
+                👁️ Preview
               </button>
 
             </div>
 
           </div>
+
+          {error && (
+            <div
+              className="
+                mb-5
+                rounded-xl
+                border
+                border-rose-200
+                bg-rose-50
+                px-5
+                py-3
+                text-sm
+                text-rose-700
+                dark:border-rose-900
+                dark:bg-rose-950/40
+                dark:text-rose-300
+              "
+            >
+              {error}
+            </div>
+          )}
 
           {success && (
             <div
@@ -4775,103 +5474,520 @@ if (
                   placeholder="Paste the job description here. Gemini will tailor your resume to this job."
                 />
 
-                <TextArea
-                  label="Professional Summary"
-                  value={
-                    form.summary
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "summary",
-                      value
-                    )
-                  }
-                  placeholder="Write a short professional summary..."
-                />
+                {/* PROFESSIONAL SUMMARY */}
+                <div>
+                  <TextArea
+                    label="Professional Summary"
+                    value={form.summary}
+                    onChange={(value) => updateField("summary", value)}
+                    placeholder="Write a short professional summary..."
+                  />
+                  <AiSectionToolbar
+                    sectionKey="summary"
+                    sectionLabel="Summary"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
 
-                <TextArea
-                  label="Skills"
-                  value={
-                    form.skills
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "skills",
-                      value
-                    )
-                  }
-                  placeholder="React, JavaScript, Python, SQL, MongoDB..."
-                />
+                {/* SKILLS */}
+                <div>
+                  <TextArea
+                    label="Skills"
+                    value={form.skills}
+                    onChange={(value) => updateField("skills", value)}
+                    placeholder="React, JavaScript, Python, SQL, MongoDB..."
+                  />
+                  <AiSectionToolbar
+                    sectionKey="skills"
+                    sectionLabel="Skills"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
 
-                <TextArea
-                  label="Experience"
-                  value={
-                    form.experience
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "experience",
-                      value
-                    )
-                  }
-                  placeholder="Describe your work experience, company, role and responsibilities..."
-                />
+                {/* EXPERIENCE */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        Experience ({livePreviewData.experience?.length || 0})
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Manage roles individually or switch to raw text view
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setSectionViewMode((p) => ({ ...p, experience: "structured" }))}
+                          className={`rounded-md px-2.5 py-1 ${sectionViewMode.experience === "structured" ? "bg-indigo-600 text-white" : "hover:text-slate-900"}`}
+                        >
+                          Cards
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSectionViewMode((p) => ({ ...p, experience: "text" }))}
+                          className={`rounded-md px-2.5 py-1 ${sectionViewMode.experience === "text" ? "bg-indigo-600 text-white" : "hover:text-slate-900"}`}
+                        >
+                          Text
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddExperience}
+                        className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-600 transition hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-400"
+                      >
+                        + Add Role
+                      </button>
+                    </div>
+                  </div>
 
-                <TextArea
-                  label="Projects"
-                  value={
-                    form.projects
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "projects",
-                      value
-                    )
-                  }
-                  placeholder="Describe your projects..."
-                />
+                  {sectionViewMode.experience === "structured" ? (
+                    <div className="space-y-3">
+                      {livePreviewData.experience && livePreviewData.experience.length > 0 ? (
+                        livePreviewData.experience.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                          >
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                              <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
+                                #{idx + 1} {item.title || "Role"} {item.company ? `@ ${item.company}` : ""}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAiEditSection(
+                                      "experience",
+                                      `Improve the achievements, action verbs, and impact metrics for role "${item.title || "Role"}" at "${item.company || "Company"}".`
+                                    )
+                                  }
+                                  className="rounded px-2 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
+                                >
+                                  ✨ AI Polish
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExperience(idx)}
+                                  className="rounded px-2 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <input
+                                type="text"
+                                value={item.title || ""}
+                                onChange={(e) => handleUpdateExperienceItem(idx, { title: e.target.value })}
+                                placeholder="Job Title / Role"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.company || ""}
+                                onChange={(e) => handleUpdateExperienceItem(idx, { company: e.target.value })}
+                                placeholder="Company / Organization"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.date || item.duration || ""}
+                                onChange={(e) => handleUpdateExperienceItem(idx, { date: e.target.value })}
+                                placeholder="Dates (e.g. 2022 - Present)"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.location || ""}
+                                onChange={(e) => handleUpdateExperienceItem(idx, { location: e.target.value })}
+                                placeholder="Location (e.g. Remote / City)"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                            </div>
+                            <textarea
+                              rows={3}
+                              value={
+                                item.bullets && Array.isArray(item.bullets) && item.bullets.length > 0
+                                  ? item.bullets.join("\n")
+                                  : item.description || ""
+                              }
+                              onChange={(e) => {
+                                const lines = e.target.value.split("\n").filter((l) => l.trim().length > 0);
+                                handleUpdateExperienceItem(idx, {
+                                  description: e.target.value,
+                                  bullets: lines.length > 0 ? lines : [e.target.value],
+                                });
+                              }}
+                              placeholder="Responsibilities and key achievements (one per line)..."
+                              className="mt-2.5 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-xs text-slate-400 dark:border-slate-700">
+                          No experience entries yet. Click "+ Add Role" to create one.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <TextArea
+                      label="Raw Experience Text"
+                      value={form.experience}
+                      onChange={(value) => updateField("experience", value)}
+                      placeholder="Describe your work experience..."
+                    />
+                  )}
 
-                <TextArea
-                  label="Education"
-                  value={
-                    form.education
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "education",
-                      value
-                    )
-                  }
-                  placeholder="B.Tech in Computer Science, Trident Academy of Technology, 2023-Present..."
-                />
+                  <AiSectionToolbar
+                    sectionKey="experience"
+                    sectionLabel="Experience"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
 
-                <TextArea
-                  label="Certifications"
-                  value={
-                    form.certifications
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "certifications",
-                      value
-                    )
-                  }
-                  placeholder="Certification name..."
-                />
+                {/* PROJECTS */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        Projects ({livePreviewData.projects?.length || 0})
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Manage projects individually or switch to raw text view
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setSectionViewMode((p) => ({ ...p, projects: "structured" }))}
+                          className={`rounded-md px-2.5 py-1 ${sectionViewMode.projects === "structured" ? "bg-indigo-600 text-white" : "hover:text-slate-900"}`}
+                        >
+                          Cards
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSectionViewMode((p) => ({ ...p, projects: "text" }))}
+                          className={`rounded-md px-2.5 py-1 ${sectionViewMode.projects === "text" ? "bg-indigo-600 text-white" : "hover:text-slate-900"}`}
+                        >
+                          Text
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddProject}
+                        className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-600 transition hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-400"
+                      >
+                        + Add Project
+                      </button>
+                    </div>
+                  </div>
 
-                <TextArea
-                  label="Achievements"
-                  value={
-                    form.achievements
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "achievements",
-                      value
-                    )
-                  }
-                  placeholder="Awards, achievements..."
-                />
+                  {sectionViewMode.projects === "structured" ? (
+                    <div className="space-y-3">
+                      {livePreviewData.projects && livePreviewData.projects.length > 0 ? (
+                        livePreviewData.projects.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                          >
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                              <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
+                                #{idx + 1} {item.title || "Project"}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAiEditSection(
+                                      "projects",
+                                      `Enhance descriptions, technical depth, and quantifiable results for project "${item.title || "Project"}".`
+                                    )
+                                  }
+                                  className="rounded px-2 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
+                                >
+                                  ✨ AI Polish
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProject(idx)}
+                                  className="rounded px-2 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <input
+                                type="text"
+                                value={item.title || ""}
+                                onChange={(e) => handleUpdateProjectItem(idx, { title: e.target.value })}
+                                placeholder="Project Title"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={
+                                  Array.isArray(item.technologies)
+                                    ? item.technologies.join(", ")
+                                    : item.technologies || ""
+                                }
+                                onChange={(e) =>
+                                  handleUpdateProjectItem(idx, {
+                                    technologies: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                                  })
+                                }
+                                placeholder="Technologies (e.g. React, Node.js)"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.github || ""}
+                                onChange={(e) => handleUpdateProjectItem(idx, { github: e.target.value })}
+                                placeholder="GitHub URL"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.url || ""}
+                                onChange={(e) => handleUpdateProjectItem(idx, { url: e.target.value })}
+                                placeholder="Live Demo / Website URL"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                            </div>
+                            <textarea
+                              rows={3}
+                              value={
+                                item.bullets && Array.isArray(item.bullets) && item.bullets.length > 0
+                                  ? item.bullets.join("\n")
+                                  : item.description || ""
+                              }
+                              onChange={(e) => {
+                                const lines = e.target.value.split("\n").filter((l) => l.trim().length > 0);
+                                handleUpdateProjectItem(idx, {
+                                  description: e.target.value,
+                                  bullets: lines.length > 0 ? lines : [e.target.value],
+                                });
+                              }}
+                              placeholder="Project description and key features (one per line)..."
+                              className="mt-2.5 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-xs text-slate-400 dark:border-slate-700">
+                          No projects added yet. Click "+ Add Project" to create one.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <TextArea
+                      label="Raw Projects Text"
+                      value={form.projects}
+                      onChange={(value) => updateField("projects", value)}
+                      placeholder="Describe your projects..."
+                    />
+                  )}
+
+                  <AiSectionToolbar
+                    sectionKey="projects"
+                    sectionLabel="Projects"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
+
+                {/* EDUCATION */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        Education ({livePreviewData.education?.length || 0})
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Manage education entries individually or switch to raw text view
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setSectionViewMode((p) => ({ ...p, education: "structured" }))}
+                          className={`rounded-md px-2.5 py-1 ${sectionViewMode.education === "structured" ? "bg-indigo-600 text-white" : "hover:text-slate-900"}`}
+                        >
+                          Cards
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSectionViewMode((p) => ({ ...p, education: "text" }))}
+                          className={`rounded-md px-2.5 py-1 ${sectionViewMode.education === "text" ? "bg-indigo-600 text-white" : "hover:text-slate-900"}`}
+                        >
+                          Text
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddEducation}
+                        className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-600 transition hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-400"
+                      >
+                        + Add Education
+                      </button>
+                    </div>
+                  </div>
+
+                  {sectionViewMode.education === "structured" ? (
+                    <div className="space-y-3">
+                      {livePreviewData.education && livePreviewData.education.length > 0 ? (
+                        livePreviewData.education.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                          >
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                              <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
+                                #{idx + 1} {item.degree || "Degree"} {item.institution ? `at ${item.institution}` : ""}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEducation(idx)}
+                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <input
+                                type="text"
+                                value={item.degree || ""}
+                                onChange={(e) => handleUpdateEducationItem(idx, { degree: e.target.value })}
+                                placeholder="Degree / Certification (e.g. B.Tech in CSE)"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.institution || ""}
+                                onChange={(e) => handleUpdateEducationItem(idx, { institution: e.target.value })}
+                                placeholder="University / College"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.date || item.duration || ""}
+                                onChange={(e) => handleUpdateEducationItem(idx, { date: e.target.value })}
+                                placeholder="Dates (e.g. 2020 - 2024)"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={item.grade || ""}
+                                onChange={(e) => handleUpdateEducationItem(idx, { grade: e.target.value })}
+                                placeholder="Grade / CGPA (e.g. 8.8 CGPA)"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                              />
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={item.description || ""}
+                              onChange={(e) => handleUpdateEducationItem(idx, { description: e.target.value })}
+                              placeholder="Relevant coursework or academic honors..."
+                              className="mt-2.5 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-xs text-slate-400 dark:border-slate-700">
+                          No education added yet. Click "+ Add Education" to create one.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <TextArea
+                      label="Raw Education Text"
+                      value={form.education}
+                      onChange={(value) => updateField("education", value)}
+                      placeholder="B.Tech in Computer Science, 2023..."
+                    />
+                  )}
+
+                  <AiSectionToolbar
+                    sectionKey="education"
+                    sectionLabel="Education"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
+
+                {/* CERTIFICATIONS */}
+                <div>
+                  <TextArea
+                    label="Certifications"
+                    value={form.certifications}
+                    onChange={(value) => updateField("certifications", value)}
+                    placeholder="Certification name (one per line)..."
+                  />
+                  <AiSectionToolbar
+                    sectionKey="certifications"
+                    sectionLabel="Certifications"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
+
+                {/* ACHIEVEMENTS */}
+                <div>
+                  <TextArea
+                    label="Achievements"
+                    value={form.achievements}
+                    onChange={(value) => updateField("achievements", value)}
+                    placeholder="Awards, hackathon wins, honors (one per line)..."
+                  />
+                  <AiSectionToolbar
+                    sectionKey="achievements"
+                    sectionLabel="Achievements"
+                    targetRole={form.targetRole}
+                    isApplyingAi={isApplyingAi}
+                    aiStatusMessage={aiStatusMessage}
+                    aiPreviewData={aiPreviewData}
+                    onApplyAi={handleAiEditSection}
+                    onAcceptAi={handleAcceptAiSection}
+                    onRejectAi={handleRejectAiSection}
+                  />
+                </div>
 
               </div>
 
@@ -5471,7 +6587,31 @@ if (
                     setResumeSource(
                       "scratch"
                     );
-
+                    try {
+                      sessionStorage.removeItem("importedResume");
+                      sessionStorage.removeItem("resumeFormData");
+                    } catch (e) {}
+                    setHasImportedResume(false);
+                    setUploadedFile(null);
+                    setForm({
+                      fullName: "",
+                      email: "",
+                      phone: "",
+                      location: "",
+                      linkedin: "",
+                      github: "",
+                      targetRole: "",
+                      careerLevel: "Student / New Graduate",
+                      jobDescription: "",
+                      summary: "",
+                      skills: "",
+                      experience: "",
+                      projects: "",
+                      education: "",
+                      certifications: "",
+                      achievements: "",
+                    });
+                    setGeneratedResume(null);
                     setError("");
                   }}
                 />
@@ -5522,6 +6662,7 @@ if (
 
                   <button
                     type="button"
+                    disabled={isParsingResume}
                     onClick={() =>
                       fileInputRef.current?.click()
                     }
@@ -5541,6 +6682,8 @@ if (
                       text-center
                       hover:border-indigo-400
                       hover:bg-indigo-50/30
+                      disabled:cursor-not-allowed
+                      disabled:opacity-60
                       dark:border-slate-700
                       dark:bg-slate-900
                     "
@@ -5582,7 +6725,7 @@ if (
                         text-slate-400
                       "
                     >
-                      PDF, DOC or DOCX
+                      PDF, DOC or DOCX (Text-based)
                     </p>
 
                   </button>
@@ -5599,51 +6742,57 @@ if (
                     }
                   />
 
-                  {atsResult && (
-                    <div
-                      className="
-                        mt-5
-                        rounded-2xl
-                        border
-                        border-emerald-100
-                        bg-emerald-50
-                        p-5
-                        dark:border-emerald-900
-                        dark:bg-emerald-950/40
-                      "
-                    >
-
-                      <p
-                        className="
-                          text-sm
-                          font-bold
-                          text-emerald-700
-                          dark:text-emerald-300
-                        "
-                      >
-                        Resume uploaded successfully
+                  {isParsingResume && (
+                    <div className="mt-5 flex items-center justify-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-900 dark:bg-indigo-950/40">
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                      <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                        {parseStatus || "Reading your resume..."}
                       </p>
+                    </div>
+                  )}
 
-                      {atsResult.score !==
-                        undefined && (
-                        <p
-                          className="
-                            mt-1
-                            text-sm
-                            text-emerald-600
-                            dark:text-emerald-400
-                          "
+                  {hasImportedResume && !isParsingResume && (
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                            ✓ Resume imported successfully
+                          </p>
+                          <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                            {form.fullName ? `${form.fullName} • ` : ""}{form.targetRole || "Extracted information"}
+                          </p>
+                        </div>
+                        {atsResult?.score !== undefined && (
+                          <span className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                            ATS Score: {atsResult.score}%
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium">
+                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                          {form.skills ? `${form.skills.split(',').length} Skills` : "Skills"}
+                        </span>
+                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                          {Array.isArray(generatedResume?.experience) ? `${generatedResume.experience.length} Experience roles` : "Experience"}
+                        </span>
+                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                          {Array.isArray(generatedResume?.projects) ? `${generatedResume.projects.length} Projects` : "Projects"}
+                        </span>
+                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                          {Array.isArray(generatedResume?.education) ? `${generatedResume.education.length} Education` : "Education"}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowEditor(true)}
+                          className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-center text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
                         >
-                          ATS Score:{" "}
-                          <strong>
-                            {
-                              atsResult.score
-                            }
-                            %
-                          </strong>
-                        </p>
-                      )}
-
+                          Open Editor Now →
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -8885,5 +10034,162 @@ function TextArea({
       />
 
     </label>
+  );
+}
+
+// ============================================================
+// AI SECTION TOOLBAR (Section-Specific AI Assistant)
+// ============================================================
+
+function AiSectionToolbar({
+  sectionKey,
+  sectionLabel,
+  targetRole,
+  isApplyingAi,
+  aiStatusMessage,
+  aiPreviewData,
+  onApplyAi,
+  onAcceptAi,
+  onRejectAi,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+
+  const isActive = aiPreviewData?.section === sectionKey;
+  const isBusy =
+    isApplyingAi &&
+    aiStatusMessage?.toLowerCase().includes(sectionLabel.toLowerCase());
+
+  return (
+    <div className="mt-2.5 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs dark:border-indigo-900/40 dark:bg-indigo-950/20">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 font-semibold text-indigo-700 dark:text-indigo-300">
+          <span>✨ AI {sectionLabel} Assistant</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            disabled={isApplyingAi}
+            onClick={() =>
+              onApplyAi(
+                sectionKey,
+                `Polish and elevate ${sectionLabel} with high-impact action verbs, quantifiable achievements, and professional ATS tone.`
+              )
+            }
+            className="rounded-lg bg-white px-2.5 py-1 font-semibold text-indigo-600 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50 dark:bg-slate-800 dark:text-indigo-400"
+          >
+            Improve with AI
+          </button>
+
+          <button
+            type="button"
+            disabled={isApplyingAi}
+            onClick={() =>
+              onApplyAi(
+                sectionKey,
+                `Rewrite ${sectionLabel} specifically tailored for a ${
+                  targetRole || "software professional"
+                } role. Highlight core strengths and technical proficiencies.`
+              )
+            }
+            className="rounded-lg bg-white px-2.5 py-1 font-semibold text-indigo-600 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50 dark:bg-slate-800 dark:text-indigo-400"
+          >
+            Rewrite with AI
+          </button>
+
+          <button
+            type="button"
+            disabled={isApplyingAi}
+            onClick={() =>
+              onApplyAi(
+                sectionKey,
+                `Customize and align ${sectionLabel} strictly to the provided job description keywords without inventing facts.`
+              )
+            }
+            className="rounded-lg bg-white px-2.5 py-1 font-semibold text-indigo-600 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50 dark:bg-slate-800 dark:text-indigo-400"
+          >
+            Tailor to Job
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="rounded-lg border border-indigo-200 bg-transparent px-2.5 py-1 font-medium text-indigo-600 transition hover:bg-indigo-100/50 dark:border-indigo-800 dark:text-indigo-400"
+          >
+            {isOpen ? "Close Custom" : "Custom Prompt ▾"}
+          </button>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="mt-3 flex gap-2">
+          <input
+            type="text"
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            placeholder={`e.g. "Highlight MERN stack projects and leadership for a ${
+              targetRole || "full-stack developer"
+            } position"`}
+            className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+          />
+          <button
+            type="button"
+            disabled={isApplyingAi || !instruction.trim()}
+            onClick={() => {
+              if (instruction.trim()) {
+                onApplyAi(sectionKey, instruction.trim());
+              }
+            }}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+          >
+            Apply
+          </button>
+        </div>
+      )}
+
+      {isBusy && (
+        <div className="mt-2.5 flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+          <span className="font-medium">{aiStatusMessage}</span>
+        </div>
+      )}
+
+      {isActive && (
+        <div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/40">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-emerald-800 dark:text-emerald-300">
+              ✨ Proposed AI Update for {sectionLabel}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onAcceptAi}
+                className="rounded-lg bg-emerald-600 px-3 py-1 font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                Accept Changes
+              </button>
+              <button
+                type="button"
+                onClick={onRejectAi}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+          <div className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white p-2.5 text-xs text-slate-700 shadow-inner dark:bg-slate-900 dark:text-slate-300">
+            {typeof aiPreviewData.data === "string"
+              ? aiPreviewData.data
+              : Array.isArray(aiPreviewData.data)
+              ? aiPreviewData.data.map((item, i) =>
+                  typeof item === "string"
+                    ? `• ${item}`
+                    : `${item.title || item.degree || "Item"} (${item.company || item.institution || ""}):\n${item.description || ""}`
+                ).join("\n\n")
+              : JSON.stringify(aiPreviewData.data, null, 2)}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
